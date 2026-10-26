@@ -9,9 +9,12 @@ docs/
 ├── requirements/
 │   ├── backlog-mn.md            Эпикийн story-нуудын жагсаалт, эрэмбэ, хамаарал
 │   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-032)
-└── architecture/
-    └── spikes/                  Судалгаа
-        └── group-org-sso-research-mn.md   SSO дээрх групп, хүүхэд нэмэх, байгууллага баталгаажуулах
+├── architecture/
+│   └── spikes/                  Судалгаа
+│       └── group-org-sso-research-mn.md   SSO дээрх групп, хүүхэд нэмэх, байгууллага баталгаажуулах
+└── design/
+    └── prototypes/              Дарж үзэх HTML прототип (хөтөч дээр шууд нээнэ)
+        └── NAV-028-org-membership.html    Байгууллагад нэгдэх: урилга, ажлын имэйл, нэгдэх хүсэлт
 ```
 
 ## Юунаас эхэлж унших вэ

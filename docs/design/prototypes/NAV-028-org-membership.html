@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Байгууллагад нэгдэх</title>
+<!--
+  NAV-028 organisation membership: clickable wireframe (owner: business-analyst / ux-designer). NOT app code.
+  Story: docs/requirements/stories/NAV-028-org-membership-verification-code-mn.md
+  Logic (PO 2026-10-26): no code is sent to the admin. Three paths to «Баталгаажсан гишүүн»:
+    1) admin invite (accept = verified), 2) work email on an org domain + OTP (automatic), 3) join request (admin approves in one tap).
+  Colours copy docs/design/tokens.json UI roles. Organisation and person names are sample DATA, not UI strings.
+  URL hash controls the view, e.g. #state=email&theme=night&toolbar=0
+  state: home | search | org | email | otp | joined | request-sent | invite | admin-requests | admin-domains
+  Demo data: the domain «ictgroup.mn» is configured for «ICT Group ХХК»; any 6-digit code except 000000 is accepted.
+-->
+<style>
+  :root {
+    --surface:#FFFFFF; --surface-container:#F1F3F4; --on-surface:#1F1F1F; --on-surface-variant:#444746;
+    --outline:#747775; --outline-variant:#C4C7C5; --primary:#0B57D0; --on-primary:#FFFFFF; --primary-container:#D3E3FD; --on-primary-container:#041E49;
+    --error:#B3261E; --error-container:#F9DEDC; --on-error-container:#410E0B; --focus-ring:#0B57D0;
+    --success:#146C2E; --success-container:#C4EED0; --on-success-container:#072711;
+    --page:#E8EAED; --hover:rgba(31,31,31,.08);
+    --elev1:0 1px 2px rgba(0,0,0,.30),0 1px 3px 1px rgba(0,0,0,.15);
+    --elev3:0 4px 8px 3px rgba(0,0,0,.15),0 1px 3px rgba(0,0,0,.30);
+    color-scheme: light;
+  }
+  :root[data-theme="night"] {
+    --surface:#1F2733; --surface-container:#27303D; --on-surface:#E3E6EA; --on-surface-variant:#B9C0CA;
+    --outline:#8B94A1; --outline-variant:#3F4957; --primary:#A8C7FA; --on-primary:#062E6F; --primary-container:#0B3D8C; --on-primary-container:#D3E3FD;
+    --error:#F2B8B5; --error-container:#601410; --on-error-container:#F9DEDC; --focus-ring:#A8C7FA;
+    --success:#6DD58C; --success-container:#0F5223; --on-success-container:#C4EED0;
+    --page:#10151C; --hover:rgba(227,230,234,.08);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--on-surface); font: 14px/1.45 Roboto, "Segoe UI", system-ui, -apple-system, sans-serif; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+  /* review toolbar (not part of the app) */
+  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--outline-variant);
+    padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .toolbar b { font-size: 12px; color: var(--on-surface-variant); margin-right: 2px; }
+  .toolbar a { font-size: 12px; padding: 4px 8px; border-radius: 8px; color: var(--primary); text-decoration: none; border: 1px solid var(--outline-variant); }
+  .toolbar a[aria-current="true"] { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
+  .toolbar .sep { width: 1px; height: 20px; background: var(--outline-variant); }
+  .toolbar-hidden .toolbar { display: none; }
+
+  .stage { display: flex; justify-content: center; padding: 24px 16px 40px; }
+  .phone { width: 100%; max-width: 380px; min-height: 720px; background: var(--surface); border-radius: 28px; box-shadow: var(--elev3);
+    overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .appbar { display: flex; align-items: center; gap: 8px; padding: 12px 8px 12px 4px; min-height: 64px; }
+  .appbar h1 { font-size: 20px; font-weight: 500; margin: 0; flex: 1; }
+  .icon-btn { width: 48px; height: 48px; border: 0; background: none; border-radius: 24px; cursor: pointer; display: grid; place-items: center; }
+  .icon-btn:hover { background: var(--hover); }
+  .icon-btn svg { width: 24px; height: 24px; fill: var(--on-surface); }
+  .role-chip { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--surface-container); color: var(--on-surface-variant); margin-right: 8px; }
+  .content { flex: 1; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .footer { padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+
+  .lead { color: var(--on-surface-variant); margin: 0; }
+  h2 { font-size: 16px; font-weight: 500; margin: 0; }
+  .card { border: 1px solid var(--outline-variant); border-radius: 16px; padding: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .card.tappable { cursor: pointer; background: none; text-align: left; width: 100%; }
+  .card.tappable:hover { background: var(--hover); }
+  .card.recommended { border-color: var(--primary); }
+  .card .body { flex: 1; min-width: 0; }
+  .card .title { font-weight: 500; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .card .sub { color: var(--on-surface-variant); font-size: 13px; }
+  .avatar { width: 40px; height: 40px; border-radius: 20px; background: var(--primary-container); color: var(--on-primary-container);
+    display: grid; place-items: center; font-weight: 500; flex: none; }
+  .avatar.org { border-radius: 10px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--success-container); color: var(--on-success-container); font-weight: 500; display: inline-flex; align-items: center; gap: 3px; }
+  .badge.info { background: var(--primary-container); color: var(--on-primary-container); }
+  .badge svg { width: 12px; height: 12px; fill: currentColor; }
+
+  .btn { min-height: 48px; border-radius: 24px; border: 0; padding: 0 24px; cursor: pointer; font-weight: 500; width: 100%; }
+  .btn.filled { background: var(--primary); color: var(--on-primary); }
+  .btn.filled:disabled { opacity: .38; cursor: default; }
+  .btn.outlined { background: none; border: 1px solid var(--outline); color: var(--primary); }
+  .btn.text { background: none; color: var(--primary); }
+  .btn.small { min-height: 40px; width: auto; padding: 0 16px; }
+  .btn.danger { color: var(--error); border-color: var(--outline-variant); }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--on-surface-variant); }
+  .field input { height: 56px; border: 1px solid var(--outline); border-radius: 8px; padding: 0 16px; background: var(--surface); }
+  .field input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+  .field .help { font-size: 12px; color: var(--on-surface-variant); }
+  .field.invalid input { border-color: var(--error); }
+  .field.invalid .help { color: var(--error); }
+  .search { display: flex; align-items: center; gap: 8px; height: 56px; border-radius: 28px; background: var(--surface-container); padding: 0 16px; }
+  .search input { border: 0; background: none; flex: 1; height: 100%; outline: none; }
+  .search svg { width: 24px; height: 24px; fill: var(--on-surface-variant); }
+
+  .otp { display: flex; gap: 8px; justify-content: space-between; }
+  .otp input { width: 44px; height: 56px; text-align: center; font-size: 22px; border: 1px solid var(--outline); border-radius: 8px; background: var(--surface); }
+  .otp input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+  .banner { border-radius: 12px; padding: 12px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .banner svg { width: 20px; height: 20px; flex: none; fill: currentColor; margin-top: 1px; }
+  .banner.error { background: var(--error-container); color: var(--on-error-container); }
+  .banner.info { background: var(--surface-container); color: var(--on-surface-variant); }
+
+  .result { text-align: center; padding: 24px 8px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .result .mark { width: 72px; height: 72px; border-radius: 36px; display: grid; place-items: center; background: var(--success-container); color: var(--on-success-container); }
+  .result .mark.pending { background: var(--primary-container); color: var(--on-primary-container); }
+  .result .mark svg { width: 36px; height: 36px; fill: currentColor; }
+  .result h2 { font-size: 22px; font-weight: 400; }
+
+  .list { display: flex; flex-direction: column; border: 1px solid var(--outline-variant); border-radius: 16px; overflow: hidden; }
+  .row { display: flex; gap: 12px; padding: 12px 16px; align-items: center; border-top: 1px solid var(--outline-variant); }
+  .row:first-child { border-top: 0; }
+  .row .body { flex: 1; min-width: 0; }
+  .row .actions { display: flex; gap: 4px; }
+  .empty { padding: 24px 16px; text-align: center; color: var(--on-surface-variant); }
+  .steps { display: flex; gap: 6px; }
+  .steps span { flex: 1; height: 4px; border-radius: 2px; background: var(--outline-variant); }
+  .steps span.on { background: var(--primary); }
+  .tabs { display: flex; border-bottom: 1px solid var(--outline-variant); margin: 0 -16px; }
+  .tabs a { flex: 1; text-align: center; padding: 12px 4px; text-decoration: none; color: var(--on-surface-variant); font-weight: 500; border-bottom: 3px solid transparent; }
+  .tabs a[aria-current="true"] { color: var(--primary); border-color: var(--primary); }
+  .count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--error); color: var(--surface); font-size: 11px; line-height: 18px; margin-left: 4px; }
+  .snackbar { position: absolute; left: 16px; right: 16px; bottom: 16px; background: #303030; color: #F2F2F2; border-radius: 8px; padding: 14px 16px;
+    box-shadow: var(--elev3); display: none; }
+  .snackbar.show { display: block; }
+  .note { font-size: 12px; color: var(--on-surface-variant); text-align: center; margin: 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<nav class="toolbar" aria-label="Прототипын төлөв">
+  <b>Ажилтан:</b>
+  <a href="#state=home">Нүүр</a><a href="#state=search">Хайх</a><a href="#state=org">Зам сонгох</a>
+  <a href="#state=email">Ажлын имэйл</a><a href="#state=otp">Код</a><a href="#state=joined">Нэгдсэн</a>
+  <a href="#state=request-sent">Хүсэлт илгээсэн</a><a href="#state=invite">Урилга</a>
+  <span class="sep"></span><b>Админ:</b>
+  <a href="#state=admin-requests">Нэгдэх хүсэлтүүд</a><a href="#state=admin-domains">Домэйн</a>
+  <span class="sep"></span>
+  <a href="#" id="themeToggle">Шөнийн горим</a>
+</nav>
+
+<main class="stage">
+  <div class="phone" id="phone" aria-live="polite"></div>
+</main>
+
+<script>
+const ICON = {
+  back: '<svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+  verified: '<svg viewBox="0 0 24 24"><path d="m23 12-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg>',
+  hourglass: '<svg viewBox="0 0 24 24"><path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zm-4-5-4-4V4h8v3.5l-4 4z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>',
+  send: '<svg viewBox="0 0 24 24"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
+  error: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+  group: '<svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>'
+};
+
+/* Sample DATA (not UI strings). */
+const ORGS = [
+  { id: 'ict', name: 'ICT Group ХХК', initials: 'IG', domains: ['ictgroup.mn'] },
+  { id: 'khan', name: 'Хаан Тех ХХК', initials: 'ХТ', domains: [] },
+  { id: 'suld', name: 'Сүлд Логистик ХХК', initials: 'СЛ', domains: ['suldlogistic.mn'] }
+];
+const PUBLIC_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'mail.ru', 'icloud.com'];
+const state = {
+  org: ORGS[0], email: '', note: '',
+  requests: [
+    { id: 1, name: 'Батбаяр Ганзориг', phone: '•••• 4821', note: 'Борлуулалтын алба', when: '2 цагийн өмнө' },
+    { id: 2, name: 'Сарангэрэл Дорж', phone: '•••• 1907', note: 'Шинэ ажилтан, санхүү', when: 'Өчигдөр' },
+    { id: 3, name: 'Тэмүүлэн Бат', phone: '•••• 6634', note: '', when: '3 өдрийн өмнө' }
+  ],
+  domains: ['ictgroup.mn'], domainPending: null
+};
+
+const $ = (s, r = document) => r.querySelector(s);
+const phone = $('#phone');
+
+/* View params live in memory and are mirrored to the URL hash when the host allows it
+   (sandboxed previews may block hash navigation). */
+const view = (() => {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { state: p.get('state') || 'home', theme: p.get('theme') || 'day', toolbar: p.get('toolbar') !== '0' };
+})();
+function params() { return view; }
+function syncHash() {
+  const p = new URLSearchParams({ state: view.state });
+  if (view.theme === 'night') p.set('theme', 'night');
+  if (!view.toolbar) p.set('toolbar', '0');
+  try { history.replaceState(null, '', '#' + p.toString()); } catch (e) { /* ignore */ }
+}
+function go(s) { view.state = s; syncHash(); render(); }
+function appbar(title, back, role) {
+  return `<header class="appbar">
+    ${back ? `<button class="icon-btn" data-go="${back}" aria-label="Буцах">${ICON.back}</button>` : '<span style="width:12px"></span>'}
+    <h1>${title}</h1>${role ? `<span class="role-chip">${role}</span>` : ''}</header>`;
+}
+function orgCard(o, extra = '') {
+  return `<div class="avatar org">${o.initials}</div>
+    <div class="body"><div class="title">${o.name}<span class="badge">${ICON.verified}Баталгаажсан</span></div>${extra}</div>`;
+}
+function snack(msg) {
+  const el = $('.snackbar', phone);
+  if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(snack.t); snack.t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+const SCREENS = {
+  home: () => `${appbar('Миний группууд')}
+    <div class="content">
+      <div class="list">
+        <div class="row"><div class="avatar">ГБ</div><div class="body"><div class="title">Манай гэр бүл</div><div class="sub">Гэр бүл · 4 гишүүн</div></div></div>
+        <div class="row"><div class="avatar">НЗ</div><div class="body"><div class="title">Ангийн найзууд</div><div class="sub">Найз · 12 гишүүн</div></div></div>
+      </div>
+      <div class="banner info">${ICON.info}<div>Админ таныг урьсан бол урилга мэдэгдэл хэсэгт ирнэ. <a href="#state=invite" style="color:var(--primary)">Жишээ урилга</a></div></div>
+    </div>
+    <div class="footer"><button class="btn filled" data-go="search">Байгууллагад нэгдэх</button></div>`,
+
+  search: () => `${appbar('Байгууллагад нэгдэх', 'home')}
+    <div class="content">
+      <label class="search">${ICON.search}<span class="sr">Байгууллага хайх</span>
+        <input id="q" placeholder="Байгууллага хайх: нэр эсвэл регистр" autocomplete="off"></label>
+      <p class="lead" style="font-size:13px">Зөвхөн баталгаажсан байгууллагууд харагдана.</p>
+      <div id="results" class="list"></div>
+    </div>`,
+
+  org: () => {
+    const o = state.org, hasDomain = o.domains.length > 0;
+    return `${appbar('Нэгдэх арга сонгох', 'search')}
+    <div class="content">
+      <div class="card">${orgCard(o)}</div>
+      <h2>Байгууллагад харьяалагддагаа хэрхэн баталгаажуулах вэ?</h2>
+      ${hasDomain ? `<button class="card tappable recommended" data-go="email">
+        <div class="avatar">${ICON.mail.replace('<svg', '<svg style="width:22px;height:22px;fill:currentColor"')}</div>
+        <div class="body"><div class="title">Ажлын имэйлээр нэгдэх <span class="badge info">Санал болгох</span></div>
+        <div class="sub">@${o.domains.join(', @')} имэйлдээ ирсэн кодыг оруулаад шууд нэгдэнэ. Админы зөвшөөрөл хэрэггүй.</div></div></button>` : ''}
+      <button class="card tappable" data-go="request">
+        <div class="avatar">${ICON.send.replace('<svg', '<svg style="width:20px;height:20px;fill:currentColor"')}</div>
+        <div class="body"><div class="title">Нэгдэх хүсэлт илгээх</div>
+        <div class="sub">Байгууллагын админ апп дотроос зөвшөөрнө.</div></div></button>
+      <div class="field" id="noteField" hidden>
+        <label for="note">Тайлбар (заавал биш)</label>
+        <input id="note" placeholder="Жишээ нь: Борлуулалтын алба" maxlength="80">
+        <div class="help">Админ таны ДАН-аар баталгаажсан нэр, утасны сүүлийн 4 оронг харна.</div>
+      </div>
+    </div>
+    <div class="footer"><button class="btn filled" id="sendReq" hidden>Хүсэлт илгээх</button></div>`;
+  },
+
+  email: () => {
+    const o = state.org;
+    return `${appbar('Ажлын имэйлээр нэгдэх', 'org')}
+    <div class="content">
+      <div class="steps" aria-hidden="true"><span class="on"></span><span></span></div>
+      <div class="card">${orgCard(o, `<div class="sub">Зөвшөөрөгдсөн домэйн: @${o.domains.join(', @') || '—'}</div>`)}</div>
+      <div class="field" id="emailField">
+        <label for="email">Ажлын имэйл</label>
+        <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="нэр@${o.domains[0] || 'domain.mn'}" value="${state.email}">
+        <div class="help" id="emailHelp">Энэ имэйл рүү 6 оронтой баталгаажуулах код илгээнэ.</div>
+      </div>
+      <div id="emailAlt" hidden><button class="btn outlined" data-go="org-request">Нэгдэх хүсэлт илгээх</button></div>
+    </div>
+    <div class="footer"><button class="btn filled" id="sendCode" disabled>Код илгээх</button></div>`;
+  },
+
+  otp: () => `${appbar('Баталгаажуулах код', 'email')}
+    <div class="content">
+      <div class="steps" aria-hidden="true"><span class="on"></span><span class="on"></span></div>
+      <p class="lead"><b style="color:var(--on-surface)">${state.email || 'bat@ictgroup.mn'}</b> хаяг руу илгээсэн 6 оронтой кодыг оруулна уу. Код 10 минут хүчинтэй.</p>
+      <div class="otp" role="group" aria-label="Баталгаажуулах код">
+        ${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" maxlength="1" aria-label="${i + 1}-р орон">`).join('')}
+      </div>
+      <div class="banner error" id="otpErr" hidden>${ICON.error}<div>Код буруу байна. Дахин оролдоно уу.</div></div>
+      <button class="btn text" id="resend">Код дахин илгээх</button>
+    </div>
+    <div class="footer"><button class="btn filled" id="verify" disabled>Баталгаажуулах</button></div>`,
+
+  joined: () => `${appbar('', 'home')}
+    <div class="content"><div class="result">
+      <div class="mark">${ICON.check}</div>
+      <h2>Та байгууллагын баталгаажсан гишүүн боллоо</h2>
+      <p class="lead">${state.org.name}</p>
+      <div class="card" style="width:100%;text-align:left">${orgCard(state.org, '<div class="sub">Таны role: Гишүүн</div>')}</div>
+      <p class="note">Ажлын имэйл тань хувийн мэдээлэлд «Байгууллагын» контакт болж хадгалагдлаа.</p>
+    </div></div>
+    <div class="footer"><button class="btn filled" data-go="home">Группууд руу очих</button></div>`,
+
+  'request-sent': () => `${appbar('', 'home')}
+    <div class="content"><div class="result">
+      <div class="mark pending">${ICON.hourglass}</div>
+      <h2>Хүсэлт илгээгдлээ</h2>
+      <p class="lead">Админ зөвшөөрөхийг хүлээж байна. Зөвшөөрөхөд мэдэгдэл ирнэ.</p>
+      <div class="card" style="width:100%;text-align:left">${orgCard(state.org, `<div class="sub">${state.note ? 'Тайлбар: ' + state.note : 'Тайлбаргүй'}</div>`)}</div>
+      <p class="note">14 хоногт шийдэгдээгүй хүсэлт автоматаар хүчингүй болно.</p>
+    </div></div>
+    <div class="footer"><button class="btn outlined danger" data-go="home" data-snack="Хүсэлтийг цуцаллаа">Хүсэлт цуцлах</button>
+      <button class="btn text" data-go="admin-requests">Админы талаас харах →</button></div>`,
+
+  invite: () => `${appbar('Урилга', 'home')}
+    <div class="content">
+      <div class="card">${orgCard(state.org, '<div class="sub">Админ Ганбат Б. таныг урьсан байна</div>')}</div>
+      <div class="banner info">${ICON.info}<div>Админы урилгыг хүлээн авахад та шууд баталгаажсан гишүүн болно. Нэмэлт код шаардахгүй.</div></div>
+    </div>
+    <div class="footer"><button class="btn filled" data-go="joined">Урилга хүлээн авах</button>
+      <button class="btn text" data-go="home" data-snack="Урилгаас татгалзлаа">Татгалзах</button></div>`,
+
+  'admin-requests': () => `${appbar(state.org.name, null, 'Админ')}
+    <div class="content">
+      <nav class="tabs"><a href="#state=admin-requests" aria-current="true">Нэгдэх хүсэлтүүд${state.requests.length ? `<span class="count">${state.requests.length}</span>` : ''}</a>
+        <a href="#state=admin-domains">Домэйн</a></nav>
+      <div class="list" id="reqList">
+        ${state.requests.length ? state.requests.map(r => `<div class="row" data-id="${r.id}">
+          <div class="avatar">${r.name.split(' ').map(w => w[0]).join('')}</div>
+          <div class="body"><div class="title">${r.name} <span class="badge">${ICON.verified}ДАН</span></div>
+            <div class="sub">${r.phone}${r.note ? ' · ' + r.note : ''} · ${r.when}</div></div>
+          <div class="actions">
+            <button class="icon-btn" data-act="decline" aria-label="Татгалзах">${ICON.close}</button>
+            <button class="icon-btn" data-act="approve" aria-label="Зөвшөөрөх" style="background:var(--primary-container)">${ICON.check}</button>
+          </div></div>`).join('') : '<div class="empty">Хүлээгдэж буй хүсэлт алга</div>'}
+      </div>
+      <p class="note">Ажлын имэйлээр нэгдсэн гишүүд энд орохгүй: тэд автоматаар баталгаажна.</p>
+    </div>
+    <div class="footer">${state.requests.length ? '<button class="btn filled" id="approveAll">Бүгдийг зөвшөөрөх</button>' : ''}</div>
+    <div class="snackbar"></div>`,
+
+  'admin-domains': () => `${appbar(state.org.name, null, 'Эзэмшигч')}
+    <div class="content">
+      <nav class="tabs"><a href="#state=admin-requests">Нэгдэх хүсэлтүүд${state.requests.length ? `<span class="count">${state.requests.length}</span>` : ''}</a>
+        <a href="#state=admin-domains" aria-current="true">Домэйн</a></nav>
+      <p class="lead">Энэ домэйнтэй имэйлээр нэгдсэн хүн автоматаар баталгаажна.</p>
+      <div class="list">
+        ${state.domains.length ? state.domains.map(d => `<div class="row"><div class="body"><div class="title">@${d}</div><div class="sub">Идэвхтэй</div></div>
+          <button class="btn text small" data-remove="${d}">Хасах</button></div>`).join('') : '<div class="empty">Домэйн нэмээгүй байна</div>'}
+      </div>
+      ${state.domainPending ? `
+        <div class="card"><div class="body">
+          <div class="title">@${state.domainPending.domain}</div>
+          <div class="sub">${state.domainPending.email} руу илгээсэн кодыг оруулна уу.</div>
+          <div class="otp" style="margin-top:12px" role="group" aria-label="Баталгаажуулах код">
+            ${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" maxlength="1" aria-label="${i + 1}-р орон">`).join('')}</div>
+          <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+            <button class="btn text small" id="cancelDomain">Болих</button>
+            <button class="btn filled small" id="confirmDomain" disabled>Баталгаажуулах</button></div>
+        </div></div>` : `
+        <div class="field" id="domainField">
+          <label for="domain">Домэйн нэмэх</label>
+          <input id="domain" placeholder="жишээ нь: company.mn" autocomplete="off">
+          <div class="help" id="domainHelp">Та өөрийн энэ домэйнтэй имэйлд ирсэн кодоор баталгаажуулна.</div>
+        </div>
+        <button class="btn outlined" id="addDomain">Домэйн нэмэх</button>`}
+    </div>
+    <div class="snackbar"></div>`
+};
+SCREENS['org-request'] = SCREENS.org;
+
+function bindOtp(root, onChange) {
+  const boxes = [...root.querySelectorAll('.otp input')];
+  boxes.forEach((b, i) => {
+    b.addEventListener('input', () => { b.value = b.value.replace(/\D/g, '').slice(0, 1); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); onChange(boxes.map(x => x.value).join('')); });
+    b.addEventListener('keydown', e => { if (e.key === 'Backspace' && !b.value && boxes[i - 1]) boxes[i - 1].focus(); });
+    b.addEventListener('paste', e => { const t = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6); if (!t) return; e.preventDefault();
+      boxes.forEach((x, j) => x.value = t[j] || ''); onChange(t); (boxes[t.length] || boxes[5]).focus(); });
+  });
+  return boxes;
+}
+
+const BIND = {
+  search() {
+    const q = $('#q', phone), res = $('#results', phone);
+    const draw = () => {
+      const v = q.value.trim().toLowerCase();
+      const list = ORGS.filter(o => !v || o.name.toLowerCase().includes(v));
+      res.innerHTML = list.length ? list.map(o => `<button class="row card tappable" style="border:0;border-radius:0" data-org="${o.id}">${orgCard(o,
+        `<div class="sub">${o.domains.length ? 'Ажлын имэйлээр нэгдэх боломжтой' : 'Нэгдэх хүсэлтээр'}</div>`)}</button>`).join('')
+        : '<div class="empty">Илэрц олдсонгүй</div>';
+    };
+    q.addEventListener('input', draw); draw();
+    res.addEventListener('click', e => { const b = e.target.closest('[data-org]'); if (!b) return; state.org = ORGS.find(o => o.id === b.dataset.org); go('org'); });
+  },
+  org(isRequest) {
+    const showReq = () => { $('#noteField', phone).hidden = false; $('#sendReq', phone).hidden = false; $('#note', phone).focus(); };
+    if (isRequest) showReq();
+    phone.querySelector('[data-go="request"]').addEventListener('click', e => { e.stopPropagation(); showReq(); });
+    $('#sendReq', phone).addEventListener('click', () => {
+      state.note = $('#note', phone).value.trim();
+      state.requests.unshift({ id: Date.now(), name: 'Та (жишээ)', phone: '•••• 0000', note: state.note, when: 'Саяхан' });
+      go('request-sent');
+    });
+  },
+  email() {
+    const inp = $('#email', phone), field = $('#emailField', phone), help = $('#emailHelp', phone), btn = $('#sendCode', phone), alt = $('#emailAlt', phone);
+    const check = () => {
+      const v = inp.value.trim().toLowerCase(), m = v.match(/^[^@\s]+@([^@\s]+\.[^@\s]+)$/);
+      field.classList.remove('invalid'); alt.hidden = true; help.textContent = 'Энэ имэйл рүү 6 оронтой баталгаажуулах код илгээнэ.';
+      if (!m) { btn.disabled = true; return; }
+      if (!state.org.domains.includes(m[1])) {
+        field.classList.add('invalid'); alt.hidden = false; btn.disabled = true;
+        help.textContent = 'Энэ имэйл байгууллагын домэйнд хамаарахгүй байна.'; return;
+      }
+      btn.disabled = false;
+    };
+    inp.addEventListener('input', check); check();
+    btn.addEventListener('click', () => { state.email = inp.value.trim(); go('otp'); });
+  },
+  otp() {
+    let code = '';
+    const btn = $('#verify', phone), err = $('#otpErr', phone);
+    const boxes = bindOtp(phone, v => { code = v; err.hidden = true; btn.disabled = v.length !== 6; });
+    boxes[0].focus();
+    btn.addEventListener('click', () => { if (code === '000000') { err.hidden = false; return; } go('joined'); });
+    $('#resend', phone).addEventListener('click', () => { boxes.forEach(b => b.value = ''); btn.disabled = true; boxes[0].focus(); });
+  },
+  'admin-requests'() {
+    const done = (id, msg) => { state.requests = state.requests.filter(r => r.id !== id); render(); snack(msg); };
+    $('#reqList', phone).addEventListener('click', e => {
+      const b = e.target.closest('[data-act]'); if (!b) return;
+      const id = +b.closest('[data-id]').dataset.id, r = state.requests.find(x => x.id === id);
+      done(id, b.dataset.act === 'approve' ? `${r.name} баталгаажсан гишүүн боллоо` : `${r.name}-ийн хүсэлтийг татгалзлаа`);
+    });
+    const all = $('#approveAll', phone);
+    if (all) all.addEventListener('click', () => { const n = state.requests.length; state.requests = []; render(); snack(`${n} хүсэлтийг зөвшөөрлөө`); });
+  },
+  'admin-domains'() {
+    phone.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => {
+      state.domains = state.domains.filter(d => d !== b.dataset.remove); state.org.domains = state.domains; render(); snack('Домэйн хасагдлаа. Өмнө нэгдсэн гишүүд үлдэнэ.');
+    }));
+    if (state.domainPending) {
+      const ok = $('#confirmDomain', phone);
+      bindOtp(phone, v => ok.disabled = v.length !== 6)[0].focus();
+      ok.addEventListener('click', () => { state.domains.push(state.domainPending.domain); state.org.domains = state.domains; state.domainPending = null; render(); snack('Домэйн идэвхжлээ'); });
+      $('#cancelDomain', phone).addEventListener('click', () => { state.domainPending = null; render(); });
+      return;
+    }
+    const inp = $('#domain', phone), field = $('#domainField', phone), help = $('#domainHelp', phone);
+    $('#addDomain', phone).addEventListener('click', () => {
+      const d = inp.value.trim().toLowerCase().replace(/^@/, '');
+      const fail = msg => { field.classList.add('invalid'); help.textContent = msg; inp.focus(); };
+      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return fail('Домэйн буруу байна. Жишээ нь: company.mn');
+      if (PUBLIC_DOMAINS.includes(d)) return fail('Нийтийн имэйлийн домэйныг нэмэх боломжгүй.');
+      if (state.domains.includes(d)) return fail('Энэ домэйн аль хэдийн нэмэгдсэн байна.');
+      if (ORGS.some(o => o !== state.org && o.domains.includes(d))) return fail('Энэ домэйн өөр байгууллагад бүртгэлтэй байна.');
+      state.domainPending = { domain: d, email: 'ganbat@' + d }; render();
+    });
+  }
+};
+
+function render() {
+  const p = params();
+  document.documentElement.dataset.theme = p.theme === 'night' ? 'night' : '';
+  document.body.classList.toggle('toolbar-hidden', !p.toolbar);
+  $('#themeToggle').textContent = p.theme === 'night' ? 'Өдрийн горим' : 'Шөнийн горим';
+  document.querySelectorAll('.toolbar a[href^="#state="]').forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === '#state=' + p.state ? 'true' : 'false'));
+  const s = SCREENS[p.state] ? p.state : 'home';
+  const html = SCREENS[s]();
+  phone.innerHTML = html + (html.includes('snackbar') ? '' : '<div class="snackbar"></div>');
+  if (s === 'org-request') BIND.org(true); else if (BIND[s]) BIND[s]();
+  phone.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => {
+    const msg = el.dataset.snack; const target = el.dataset.go;
+    if (target === 'request') return;
+    go(target); if (msg) snack(msg);
+  }));
+}
+$('#themeToggle').addEventListener('click', e => {
+  e.preventDefault();
+  view.theme = view.theme === 'night' ? 'day' : 'night'; syncHash(); render();
+});
+/* State links keep the other params (theme, toolbar). */
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#state="]'); if (!a) return;
+  e.preventDefault(); go(a.getAttribute('href').slice(7));
+});
+window.addEventListener('hashchange', () => {
+  const p = new URLSearchParams(location.hash.slice(1));
+  view.state = p.get('state') || 'home'; view.theme = p.get('theme') || 'day'; view.toolbar = p.get('toolbar') !== '0'; render();
+});
+render();
+</script>
+</body>
+</html>
