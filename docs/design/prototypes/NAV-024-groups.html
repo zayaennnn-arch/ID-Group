@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Миний групп</title>
+<!--
+  Groups and organisations in Hamuga ID: clickable wireframe (owner: business-analyst). NOT app code.
+  Stories: NAV-024 (create a group by type), NAV-029 (register / verify an organisation), NAV-028 (join an already registered
+  organisation: work email or join request), NAV-026 (invite members). docs/requirements/stories/
+  Visual reference: Hamuga ID «Миний хүүхэд» page (screenshots in https://ictg.gitbook.io/hamuga-id/kids-guide):
+    grey page, white sidebar card, list rows with status dots and «… ↗» buttons, centred empty state with a purple «+ …» button,
+    consent-style modals. Brand purple sampled from the screenshots: #5F00EB.
+  Everything is reached by clicking inside the page (no review toolbar). The prototype sends no email or SMS, so every
+  verification code is shown under its input as «Туршилтын код».
+  Organisation and person names, register numbers and codes are sample DATA, not UI strings. Test register numbers:
+    5551234  — you are the director (verified at once)
+    6201258  — someone else is the director (approval request)
+    2034567  — already registered in Hamuga ID (join by work email or join request)
+-->
+<style>
+  :root {
+    --page:#F4F5F4; --card:#FFFFFF; --text:#111827; --text-2:#6B7280; --text-3:#9CA3AF;
+    --line:#ECEDEE; --line-2:#E5E7EB; --hover:#F3F4F6; --active:#F1F2F3;
+    --brand:#5F00EB; --brand-hover:#5200CC; --brand-soft:#EFE7FE; --brand-ink:#3B0A91;
+    --ok:#22C55E; --ok-soft:#DCFCE7; --ok-ink:#166534;
+    --bad:#EF4444; --bad-soft:#FEE2E2; --bad-ink:#991B1B;
+    --wait:#F59E0B; --wait-soft:#FEF3C7; --wait-ink:#92400E;
+    --info:#2563EB; --info-soft:#DBEAFE; --info-ink:#1E40AF;
+    --warn-bg:#FFF7ED; --warn-ink:#C2410C;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    --modal-shadow:0 20px 40px rgba(16,24,40,.18);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--text); font: 14px/1.5 Inter, "Segoe UI", Roboto, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  svg { flex: none; }
+
+  .topbar { height: 64px; display: flex; align-items: center; padding: 0 24px; }
+  .logo { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: 22px; letter-spacing: -.5px; color: #1A1A2E; }
+  .logo span { background: var(--brand); color: #fff; border-radius: 6px; padding: 0 6px; font-size: 18px; line-height: 26px; }
+
+  .layout { max-width: 1120px; margin: 0 auto; padding: 0 24px 48px; display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .sidebar { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 24px 12px 12px; position: sticky; top: 16px; }
+  .profile { padding: 0 8px 16px; }
+  .profile .ph { width: 96px; height: 96px; border-radius: 50%; background: #E9E4FB; display: grid; place-items: center; position: relative; }
+  .profile .ph svg { width: 56px; height: 56px; fill: #6D5BD0; }
+  .profile .cam { position: absolute; right: -2px; bottom: 2px; width: 28px; height: 28px; border-radius: 50%; background: #4B5563; border: 3px solid #fff; display: grid; place-items: center; }
+  .profile .cam svg { width: 14px; height: 14px; fill: #fff; }
+  .profile .name { font-weight: 700; margin-top: 12px; text-transform: uppercase; }
+  .level { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .level svg { width: 14px; height: 14px; fill: var(--info); }
+  .menu { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .menu .grp { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .menu a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #374151; text-decoration: none; font-size: 13.5px; }
+  .menu a:hover { background: var(--hover); }
+  .menu a[aria-current="page"] { background: var(--active); color: var(--text); font-weight: 600; }
+  .menu a svg { width: 18px; height: 18px; fill: #4B5563; }
+  .menu .new { margin-left: auto; font-size: 10px; font-weight: 600; color: var(--brand); background: var(--brand-soft); padding: 1px 6px; border-radius: 6px; }
+
+  .main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .crumb { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 13px; background: none; border: 0; padding: 0; cursor: pointer; }
+  .crumb:hover { color: var(--text); }
+  .crumb svg { width: 16px; height: 16px; fill: currentColor; }
+  .section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .section-head .t { flex: 1; min-width: 0; }
+  .section-head h2 { font-size: 15px; font-weight: 700; margin: 0; }
+  .section-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-2); }
+  .ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--card); font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .ghost:hover { background: var(--hover); }
+  .ghost svg { width: 14px; height: 14px; fill: currentColor; }
+  .ghost.brand svg { fill: var(--brand); }
+  .ghost.danger { color: var(--bad-ink); }
+  .ghost.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .ghost.primary:hover { background: var(--brand-hover); }
+
+  .list { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .list.flat { box-shadow: none; border: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row.click { cursor: pointer; }
+  .row.click:hover { background: #FAFAFB; }
+  .row .body { flex: 1; min-width: 0; }
+  .row .name { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row .sub { font-size: 12px; color: var(--text-2); }
+  .row .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .ava { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; flex: none; }
+  .ava svg { width: 20px; height: 20px; fill: currentColor; }
+  .ava.sq { border-radius: 10px; }
+  .t-family { background: #FCE7F3; color: #9D174D; } .t-org { background: #EEF2FF; color: #3730A3; }
+  .t-friend { background: #DCFCE7; color: #166534; } .t-other { background: #FEF3C7; color: #92400E; }
+  .p1 { background: #FDE68A; color: #78350F; } .p2 { background: #BFDBFE; color: #1E3A8A; } .p3 { background: #FBCFE8; color: #831843; } .p4 { background: #DDD6FE; color: #4C1D95; } .p0 { background: #E9E4FB; color: #4C1D95; }
+  .ava .dot { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.wait { background: var(--wait); }
+  .pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .pill svg { width: 12px; height: 12px; fill: currentColor; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok-ink); }
+  .pill.wait { background: var(--wait-soft); color: var(--wait-ink); }
+  .pill.brand { background: var(--brand-soft); color: var(--brand-ink); }
+  .pill.info { background: var(--info-soft); color: var(--info-ink); }
+  .pill.grey { background: #F3F4F6; color: #374151; }
+
+  .empty { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); padding: 40px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .empty .stack { display: flex; margin-bottom: 8px; align-items: center; }
+  .empty .stack .ava { width: 44px; height: 44px; border: 3px solid #fff; margin-left: -10px; }
+  .empty .stack .ava:first-child { margin-left: 0; }
+  .empty .stack .ava.mid { width: 52px; height: 52px; z-index: 1; }
+  .empty h3 { margin: 0; font-size: 14px; font-weight: 700; }
+  .empty p { margin: 0; font-size: 12.5px; color: var(--text-2); }
+  .btn { height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid transparent; font-weight: 600; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn.primary { background: var(--brand); color: #fff; }
+  .btn.primary:hover { background: var(--brand-hover); }
+  .btn.primary:disabled { background: #C4B5FD; cursor: default; }
+  .btn.outline { background: #fff; border-color: var(--line-2); color: var(--text); }
+  .btn.outline:hover { background: var(--hover); }
+  .btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+  .note { border-radius: 10px; padding: 12px 14px; font-size: 13px; display: flex; gap: 10px; align-items: flex-start; }
+  .note svg { width: 18px; height: 18px; fill: currentColor; margin-top: 1px; }
+  .note.warn { background: var(--warn-bg); color: var(--warn-ink); }
+  .note.grey { background: #F3F4F6; color: #374151; }
+  .note.bad { background: var(--bad-soft); color: var(--bad-ink); }
+  .note.ok { background: var(--ok-soft); color: var(--ok-ink); }
+  .note.info { background: var(--info-soft); color: var(--info-ink); }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line-2); margin-bottom: 16px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { padding: 10px 12px; color: var(--text-2); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 600; font-size: 13.5px; white-space: nowrap; cursor: pointer; }
+  .tabs button[aria-selected="true"] { color: var(--brand); border-color: var(--brand); }
+  .count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; line-height: 18px; margin-left: 4px; text-align: center; }
+
+  .scrim { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: grid; place-items: center; padding: 16px; z-index: 20; }
+  .modal { background: #fff; border-radius: 12px; box-shadow: var(--modal-shadow); width: 100%; max-width: 480px; max-height: calc(100vh - 32px); overflow: auto; }
+  .modal-h { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .modal-h h3 { flex: 1; margin: 0; font-size: 15px; font-weight: 700; }
+  .modal-h .step { font-size: 12px; color: var(--text-2); }
+  .x { width: 32px; height: 32px; border: 0; background: none; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+  .x:hover { background: var(--hover); }
+  .x svg { width: 20px; height: 20px; fill: #4B5563; }
+  .modal-b { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-b .lead { margin: 0; font-weight: 600; }
+  .modal-b .muted { margin: 0; color: var(--text-2); font-size: 13px; }
+  .modal-f { display: flex; gap: 10px; padding: 0 20px 20px; }
+  .modal-f .btn.outline { flex: 0 0 120px; }
+  .modal-f .btn.primary { flex: 1; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label, .field .lbl { font-size: 12.5px; font-weight: 600; color: #374151; }
+  .field input { height: 44px; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 12px; background: #fff; min-width: 0; }
+  .field input:focus { outline: 2px solid var(--brand); border-color: transparent; }
+  .field .hint { font-size: 12px; color: var(--text-2); }
+  .field.invalid input { border-color: var(--bad); }
+  .field.invalid .hint { color: var(--bad-ink); }
+  .inline { display: flex; gap: 8px; }
+  .inline input { flex: 1; }
+  .search { display: flex; align-items: center; gap: 8px; height: 44px; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 12px; }
+  .search:focus-within { outline: 2px solid var(--brand); border-color: transparent; }
+  .search input { border: 0; outline: 0; flex: 1; height: 100%; background: none; min-width: 0; }
+  .search svg { width: 18px; height: 18px; fill: var(--text-3); }
+  .types { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .type { border: 1px solid var(--line-2); border-radius: 12px; padding: 14px; background: #fff; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .type:hover { background: #FAFAFB; }
+  .type[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+  .type .t { font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .type .d { font-size: 12px; color: var(--text-2); }
+  .opt { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line-2); border-radius: 10px; padding: 14px; cursor: pointer; background: #fff; text-align: left; width: 100%; }
+  .opt:hover { background: #FAFAFB; }
+  .opt[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+  .opt .t { font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .opt .d { font-size: 12.5px; color: var(--text-2); }
+  .opt .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #D1D5DB; margin-top: 2px; flex: none; }
+  .opt[aria-checked="true"] .radio { border: 5px solid var(--brand); }
+  .checkrow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+  .checkrow:first-child { border-top: 0; }
+  .checkrow input { accent-color: var(--brand); width: 18px; height: 18px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: #F3F4F6; border-radius: 999px; padding: 4px 6px 4px 10px; font-size: 12.5px; }
+  .chip button { border: 0; background: none; cursor: pointer; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; }
+  .chip button svg { width: 14px; height: 14px; fill: #4B5563; }
+  .otp { display: flex; gap: 8px; justify-content: space-between; }
+  .otp input { width: 48px; height: 52px; text-align: center; font-size: 20px; font-weight: 600; border: 1px solid var(--line-2); border-radius: 8px; min-width: 0; }
+  .otp input:focus { outline: 2px solid var(--brand); border-color: transparent; }
+  .democode { border: 1px dashed #C4B5FD; background: #FAF7FF; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: var(--brand-ink); display: flex; align-items: center; gap: 10px; }
+  .democode b { font-size: 18px; letter-spacing: 4px; font-variant-numeric: tabular-nums; color: var(--brand); }
+  .democode .fill { margin-left: auto; }
+  .linkbtn { background: none; border: 0; color: var(--brand); font-weight: 600; cursor: pointer; padding: 0; font-size: 13px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: #374151; }
+  .check input { accent-color: var(--brand); width: 16px; height: 16px; margin-top: 2px; }
+  .check a { color: var(--text); font-weight: 600; }
+  ol.terms { margin: 0; padding-left: 18px; font-size: 12.5px; color: #374151; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .kv dt { color: var(--text-2); } .kv dd { margin: 0; font-weight: 600; }
+  .testhint { font-size: 11.5px; color: var(--text-3); }
+  .testhint code { background: #F3F4F6; padding: 0 4px; border-radius: 4px; color: #374151; cursor: pointer; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111827; color: #fff; border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; box-shadow: var(--modal-shadow); display: none; z-index: 40; max-width: calc(100% - 32px); }
+  .toast.show { display: block; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  @media (max-width: 840px) {
+    .layout { grid-template-columns: minmax(0, 1fr); padding: 0 16px 40px; }
+    .layout > * { min-width: 0; }
+    .topbar { padding: 0 16px; }
+    .sidebar { position: static; padding: 16px 12px 8px; }
+    .profile { display: flex; align-items: center; gap: 12px; }
+    .profile .ph { width: 56px; height: 56px; }
+    .profile .ph svg { width: 34px; height: 34px; }
+    .profile .cam { display: none; }
+    .profile .name { margin-top: 0; }
+    .menu { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+    .menu::-webkit-scrollbar { display: none; }
+    .menu .grp { display: none; }
+    .menu a { white-space: nowrap; }
+    .section-head { flex-wrap: wrap; }
+    .row { flex-wrap: wrap; }
+    .row .acts { width: 100%; justify-content: flex-start; padding-left: 52px; }
+    .otp { gap: 6px; }
+    .otp input { width: 100%; }
+  }
+  @media (max-width: 420px) { .types { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topbar"><div class="logo">hamuga<span>ID</span></div></header>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main" id="main" aria-live="polite"></main>
+</div>
+<div id="modalRoot"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const I = {
+  user: '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>',
+  cam: '<svg viewBox="0 0 24 24"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 14a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>',
+  verified: '<svg viewBox="0 0 24 24"><path d="m23 12-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#6B7280"><path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>',
+  back: '<svg viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>',
+  person: '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z"/></svg>',
+  child: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.5 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM12 18c-2.3 0-4.3-1.5-5.1-3.5h10.2C16.3 16.5 14.3 18 12 18z"/></svg>',
+  groups: '<svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
+  home: '<svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+  org: '<svg viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>',
+  friend: '<svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
+  other: '<svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm0 4.5L19.53 19H4.47L12 6.5z"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4a3.1 3.1 0 0 1 0 6.2h-4V17h4a5 5 0 0 0 0-10z"/></svg>',
+  device: '<svg viewBox="0 0 24 24"><path d="M20 18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>',
+  key: '<svg viewBox="0 0 24 24"><path d="M12.65 10A6 6 0 1 0 12.65 14H17v4h4v-4h2v-4H12.65zM7 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>',
+  grid: '<svg viewBox="0 0 24 24"><path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-3v2h3v3h2v-3h3v-2h-3z"/></svg>',
+  globe: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 17.93A8 8 0 0 1 4.07 13H7v1a2 2 0 0 0 2 2v3.93zM17.9 17.39A2 2 0 0 0 16 16h-1v-3a1 1 0 0 0-1-1H8v-2h2a1 1 0 0 0 1-1V7h2a2 2 0 0 0 2-2v-.41A8 8 0 0 1 17.9 17.39z"/></svg>',
+  swap: '<svg viewBox="0 0 24 24"><path d="M6.99 11 3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>',
+  out: '<svg viewBox="0 0 24 24"><path d="m17 7-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8v-2H4V5z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24"><path d="M6 6v2h8.59L5 17.59 6.41 19 16 9.41V18h2V6z"/></svg>',
+  close: '<svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>',
+  send: '<svg viewBox="0 0 24 24"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>',
+  warn: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>'
+};
+const svg = (name, style = '') => I[name].replace('<svg', `<svg style="${style}"`);
+
+/* ---------- Sample DATA (not UI strings) ---------- */
+const ME = { name: 'Г.Батбаяр', short: 'ГБ' };
+const CHILDREN = [ { id: 'c1', name: 'Б.Тэмүүжин', sub: 'Эрэгтэй · 9 настай' }, { id: 'c2', name: 'Б.Номин', sub: 'Эмэгтэй · 6 настай' } ];
+/* Registry the backend would read through ДАН (legal entities) or WS100818_taxPayerInfo (sole proprietors). */
+const REGISTRY = {
+  '5551234': { name: 'Монгол Тех ХХК', initials: 'МТ', director: 'me', directorMasked: 'Г*** Б***', registered: false },
+  '6201258': { name: 'ICT Group ХХК', initials: 'IG', director: 'other', directorMasked: 'Д*** Э***', registered: false },
+  '2034567': { name: 'Сүлд Логистик ХХК', initials: 'СЛ', director: 'other', directorMasked: 'Ц*** Н***', registered: true, domains: ['suldlogistic.mn'] }
+};
+const TYPES = {
+  family: { label: 'Гэр бүл', icon: 'home', cls: 't-family', desc: 'Хүүхдүүд болон гэр бүлийнхэнтэйгээ байршил хуваалцах', defName: 'Манай гэр бүл' },
+  org:    { label: 'Байгууллага', icon: 'org', cls: 't-org', desc: 'Байгууллагаа регистрээр бүртгэж, ажилтнуудаа нэгтгэх', defName: '' },
+  friend: { label: 'Найз', icon: 'friend', cls: 't-friend', desc: 'Найзуудтайгаа байршил хуваалцах, хамт аялах', defName: 'Найзууд' },
+  other:  { label: 'Бусад', icon: 'other', cls: 't-other', desc: 'Клуб, баг, сонирхлын бүлэг гэх мэт', defName: '' }
+};
+
+const S = {
+  page: 'groups', groupId: null, tab: 'members',
+  groups: [],
+  invites: [ { id: 'inv1', type: 'org', name: 'Хангай Агро ХХК', initials: 'ХА', from: 'Админ Оюун Б.', verified: true } ],
+  seq: 1
+};
+const draft = () => ({ step: 'type', type: null, name: '', children: CHILDREN.map(c => c.id), invitees: [], reg: '', found: null, joinMethod: 'email', email: '', note: '', code: '', otpFor: null });
+let D = draft();
+
+const $ = (s, r = document) => r.querySelector(s);
+const main = $('#main'), side = $('#sidebar'), modalRoot = $('#modalRoot');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const newCode = () => String(Math.floor(100000 + Math.random() * 900000));
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800); }
+
+/* ---------- Page parts ---------- */
+function sidebar() {
+  const a = (icon, label, cur, extra = '') => `<a href="#" ${cur ? 'aria-current="page" data-act="go-groups"' : ''}>${I[icon]}${label}${extra}</a>`;
+  return `<div class="profile"><div class="ph">${I.user}<span class="cam">${I.cam}</span></div>
+      <div><div class="name">${ME.name}</div><div class="level">${I.verified}Түвшин 2 ${I.chev}</div></div></div>
+    <nav class="menu" aria-label="Цэс">
+      ${a('person', 'Хувийн мэдээлэл')}${a('child', 'Миний хүүхэд')}${a('groups', 'Миний групп', true, '<span class="new">Шинэ</span>')}${a('link', 'Сошиал холболт')}
+      <div class="grp">${a('device', 'Хандсан төхөөрөмж')}${a('key', 'Нууц үг')}${a('grid', '2FA нууцлал')}${a('globe', 'Нэвтрэх хориг')}</div>
+      <div class="grp">${a('swap', 'Интеграци системүүд')}</div><div class="grp">${a('out', 'Гарах')}</div>
+    </nav>`;
+}
+const head = (title, sub, right = '') => `<div class="section-head"><div class="t"><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right}</div>`;
+const typeAva = (type, initials, dot) => {
+  const t = TYPES[type];
+  return `<div class="ava ${type === 'org' ? 'sq' : ''} ${t.cls}">${type === 'org' && initials ? initials : svg(t.icon)}${dot ? `<span class="dot ${dot}"></span>` : ''}</div>`;
+};
+function statusPill(g) {
+  if (g.type !== 'org') return '';
+  if (g.status === 'verified') return `<span class="pill info">${I.verified}Баталгаажсан байгууллага</span>`;
+  if (g.status === 'pending-director') return '<span class="pill wait">Удирдлагын зөвшөөрөл хүлээгдэж буй</span>';
+  if (g.status === 'pending-join') return '<span class="pill wait">Нэгдэх хүсэлт хүлээгдэж буй</span>';
+  return '';
+}
+const roleLabel = r => ({ owner: 'Эзэмшигч', admin: 'Админ', member: 'Гишүүн' }[r]);
+
+function groupsPage() {
+  const inv = S.invites.length ? `<section>${head('Ирсэн урилга', 'Админы урилгыг хүлээн авахад та шууд баталгаажсан гишүүн болно.')}
+    <div class="list">${S.invites.map(v => `<div class="row">${typeAva(v.type, v.initials, 'bad')}
+      <div class="body"><div class="name">${esc(v.name)}<span class="pill grey">${TYPES[v.type].label}</span>${v.verified ? `<span class="pill info">${I.verified}Баталгаажсан</span>` : ''}</div>
+      <div class="sub">${esc(v.from)} урьсан · Өнөөдөр</div></div>
+      <div class="acts"><button class="ghost" data-act="decline-invite" data-id="${v.id}">Татгалзах</button>
+      <button class="ghost primary" data-act="accept-invite" data-id="${v.id}">Хүлээн авах ${svg('arrow', 'fill:#fff')}</button></div></div>`).join('')}</div></section>` : '';
+  const list = S.groups.length
+    ? `<div class="list">${S.groups.map(g => `<div class="row click" data-act="open-group" data-id="${g.id}">
+        ${typeAva(g.type, g.initials, g.type === 'org' ? (g.status === 'verified' ? 'ok' : 'wait') : 'ok')}
+        <div class="body"><div class="name">${esc(g.name)}<span class="pill grey">${TYPES[g.type].label}</span>${statusPill(g)}</div>
+        <div class="sub">${g.members.length} гишүүн · Таны role: ${roleLabel(g.role)}</div></div>
+        <div class="acts"><button class="ghost" data-act="open-group" data-id="${g.id}">Дэлгэрэнгүй ${svg('arrow')}</button></div></div>`).join('')}</div>`
+    : `<div class="empty"><div class="stack">${typeAva('family')}<div class="ava mid t-org sq">${svg('org', 'width:22px;height:22px')}</div>${typeAva('friend')}</div>
+        <h3>Групп үүсгээгүй</h3><p>Гэр бүл, байгууллага, найз нөхөд болон бусад зорилгоор групп үүсгэнэ үү.</p>
+        <div style="margin-top:10px"><button class="btn primary" data-act="create">${I.plus}Групп үүсгэх</button></div></div>`;
+  return `${inv}<section>${head('Миний групп', 'Гэр бүл, байгууллага, найз нөхөд болон бусад группуудын жагсаалт',
+      S.groups.length ? `<button class="ghost brand" data-act="create">${I.plus}Групп үүсгэх</button>` : '')}${list}</section>
+    <div class="note warn">${I.warn}<div>Групп үүсгэх, байгууллага бүртгэхийн тулд таны бүртгэл ДАН баталгаажуулалт хийгдсэн буюу Түвшин 2 байх шаардлагатай.</div></div>`;
+}
+
+function memberRow(m) {
+  const dot = m.state === 'invited' ? 'wait' : 'ok';
+  const pill = m.state === 'invited' ? '<span class="pill wait">Урилга хүлээгдэж буй</span>' : m.kind === 'child' ? '<span class="pill brand">Хүүхэд · ДАН-аар холбогдсон</span>' : '';
+  return `<div class="row"><div class="ava ${m.tone || 'p0'}">${esc(m.initials)}<span class="dot ${dot}"></span></div>
+    <div class="body"><div class="name">${esc(m.name)}${pill}</div><div class="sub">${roleLabel(m.role)}${m.via ? ' · ' + m.via : ''}</div></div></div>`;
+}
+function groupPage() {
+  const g = S.groups.find(x => x.id === S.groupId);
+  const back = `<button class="crumb" data-act="go-groups">${I.back}Миний групп</button>`;
+  const top = `<div class="list"><div class="row">${typeAva(g.type, g.initials, g.type === 'org' ? (g.status === 'verified' ? 'ok' : 'wait') : 'ok')}
+    <div class="body"><div class="name">${esc(g.name)}<span class="pill grey">${TYPES[g.type].label}</span>${statusPill(g)}</div>
+    <div class="sub">${g.reg ? 'Регистр ' + g.reg.replace(/^(\d{2})\d+(\d{2})$/, '$1•••$2') + ' · ' : ''}Таны role: ${roleLabel(g.role)}</div></div></div></div>`;
+  let pend = '';
+  if (g.status === 'pending-director') pend = `<div class="note info">${I.info}<div style="flex:1">Гүйцэтгэх удирдлага <b>${g.directorMasked}</b> руу зөвшөөрлийн хүсэлт илгээсэн. 72 цагийн дотор ДАН-аар зөвшөөрөхөд байгууллага баталгаажна.
+      <div style="margin-top:8px"><button class="ghost" data-act="sim-director">Туршилт: удирдлага зөвшөөрсөн гэж үзэх</button></div></div></div>`;
+  if (g.status === 'pending-join') pend = `<div class="note info">${I.info}<div style="flex:1">Нэгдэх хүсэлт илгээгдсэн. Админ зөвшөөрөхөд та баталгаажсан гишүүн болно. 14 хоногт шийдэгдээгүй бол хүчингүй болно.
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-act="sim-admin">Туршилт: админ зөвшөөрсөн гэж үзэх</button><button class="ghost danger" data-act="cancel-join">Хүсэлт цуцлах</button></div></div></div>`;
+  const canManage = g.role === 'owner' || g.role === 'admin';
+  const inviteBtn = canManage && g.status !== 'pending-join' ? `<button class="ghost brand" data-act="invite">${I.plus}Гишүүн урих</button>` : '';
+  const isOrgAdmin = g.type === 'org' && g.status === 'verified' && canManage;
+  const tabs = isOrgAdmin ? `<div class="tabs" role="tablist">
+      <button role="tab" data-act="tab" data-tab="members" aria-selected="${S.tab === 'members'}">Гишүүд</button>
+      <button role="tab" data-act="tab" data-tab="requests" aria-selected="${S.tab === 'requests'}">Нэгдэх хүсэлтүүд${g.requests.length ? `<span class="count">${g.requests.length}</span>` : ''}</button>
+      <button role="tab" data-act="tab" data-tab="domains" aria-selected="${S.tab === 'domains'}">Ажлын имэйлийн домэйн</button></div>` : '';
+  const tab = isOrgAdmin ? S.tab : 'members';
+  let body = '';
+  if (tab === 'members') body = head('Гишүүд', g.type === 'family' ? 'Хүүхдүүд «Миний хүүхэд»-ээс ДАН-аар холбогдсон тул урилгагүйгээр нэмэгдсэн.' : 'Группын гишүүд ба тэдний role', inviteBtn)
+      + `<div class="list">${g.members.map(memberRow).join('')}</div>`;
+  if (tab === 'requests') body = head('Нэгдэх хүсэлтүүд', 'Ажлын имэйлээр нэгдсэн хүмүүс энд орохгүй: тэд автоматаар баталгаажна.',
+      g.requests.length ? `<button class="ghost primary" data-act="approve-all">${svg('check', 'fill:#fff')}Бүгдийг зөвшөөрөх</button>` : '')
+      + `<div class="list">${g.requests.length ? g.requests.map(r => `<div class="row"><div class="ava ${r.tone}">${r.initials}<span class="dot wait"></span></div>
+        <div class="body"><div class="name">${esc(r.name)}<span class="pill ok">${I.verified}ДАН</span></div><div class="sub">Утас ${r.phone}${r.note ? ' · ' + esc(r.note) : ''} · ${r.when}</div></div>
+        <div class="acts"><button class="ghost" data-act="decide" data-ok="0" data-id="${r.id}">Татгалзах</button><button class="ghost primary" data-act="decide" data-ok="1" data-id="${r.id}">Зөвшөөрөх</button></div></div>`).join('')
+        : '<div class="row"><div class="body sub">Хүлээгдэж буй хүсэлт алга.</div></div>'}</div>`;
+  if (tab === 'domains') body = head('Ажлын имэйлийн домэйн', 'Энэ домэйнтэй имэйлээр нэгдсэн хүн админы зөвшөөрөлгүйгээр автоматаар баталгаажна.',
+      `<button class="ghost brand" data-act="add-domain">${I.plus}Домэйн нэмэх</button>`)
+      + `<div class="list">${g.domains.length ? g.domains.map(d => `<div class="row"><div class="ava" style="background:#F3F4F6;color:#374151">${svg('mail', 'width:18px;height:18px')}<span class="dot ok"></span></div>
+        <div class="body"><div class="name">@${d}</div><div class="sub">Идэвхтэй</div></div>
+        <div class="acts"><button class="ghost danger" data-act="remove-domain" data-d="${d}">Хасах</button></div></div>`).join('')
+        : '<div class="row"><div class="body sub">Домэйн нэмээгүй байна. Нэмбэл ажилтнууд ажлын имэйлээрээ шууд нэгдэнэ.</div></div>'}</div>
+      <div class="note grey" style="margin-top:12px">${I.info}<div>gmail.com, yahoo.com зэрэг нийтийн имэйлийн домэйныг нэмэх боломжгүй. Нэг домэйн зөвхөн нэг байгууллагад холбогдоно.</div></div>`;
+  return `<div>${back}</div><section>${top}</section>${pend}<section>${tabs}${body}</section>`;
+}
+
+/* ---------- Modals ---------- */
+function modal(title, body, foot, step = '') {
+  return `<div class="scrim" data-scrim><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <div class="modal-h"><h3 id="mt">${title}</h3>${step ? `<span class="step">${step}</span>` : ''}<button class="x" data-act="close" aria-label="Хаах">${I.close}</button></div>
+    <div class="modal-b">${body}</div>${foot ? `<div class="modal-f">${foot}</div>` : ''}</div></div>`;
+}
+function otpBlock(target) {
+  return `<p class="muted"><b style="color:var(--text)">${esc(target)}</b> хаяг руу илгээсэн 6 оронтой кодыг оруулна уу. Код 10 минут хүчинтэй.</p>
+    <div class="otp" role="group" aria-label="Баталгаажуулах код">${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" maxlength="1" aria-label="${i + 1}-р орон">`).join('')}</div>
+    <div class="democode">${svg('mail', 'width:18px;height:18px;fill:currentColor')}<span>Туршилтын код:</span><b>${D.code}</b><button class="linkbtn fill" data-act="fill-code">Бөглөх</button></div>
+    <div class="note bad" id="otpErr" hidden>${I.warn}<div>Код буруу байна. Дахин оролдоно уу.</div></div>
+    <div><button class="linkbtn" data-act="resend">Код дахин илгээх</button></div>`;
+}
+const footer = (backAct, nextLabel, nextAct, disabled = false, backLabel = 'Буцах') =>
+  `<button class="btn outline" data-act="${backAct}">${backLabel}</button><button class="btn primary" id="next" data-act="${nextAct}" ${disabled ? 'disabled' : ''}>${nextLabel}</button>`;
+
+const M = {
+  type: () => modal('Групп үүсгэх', `<p class="lead">Ямар төрлийн групп үүсгэх вэ?</p>
+      <div class="types" role="radiogroup">${Object.entries(TYPES).map(([k, t]) => `<button class="type" role="radio" data-act="pick-type" data-type="${k}" aria-checked="${D.type === k}">
+        ${typeAva(k)}<div class="t">${t.label}${k === 'org' ? '<span class="pill brand">Баталгаажуулалттай</span>' : ''}</div><div class="d">${t.desc}</div></button>`).join('')}</div>`,
+      footer('close', 'Үргэлжлүүлэх', 'type-next', !D.type, 'Болих'), '1/2'),
+
+  details: () => {
+    const t = TYPES[D.type];
+    const kids = D.type === 'family' ? `<div class="field"><span class="lbl">Миний хүүхэд</span>
+        <div class="list flat">${CHILDREN.map(c => `<label class="checkrow"><input type="checkbox" data-child="${c.id}" ${D.children.includes(c.id) ? 'checked' : ''}>
+          <div class="ava p2" style="width:32px;height:32px;font-size:12px">${c.name.split('.')[1][0]}</div><div style="flex:1"><div style="font-weight:600;font-size:13px">${c.name}</div><div class="sub" style="font-size:12px;color:var(--text-2)">${c.sub}</div></div>
+          <span class="pill brand">ДАН</span></label>`).join('')}</div>
+        <div class="hint">ДАН-аар холбогдсон хүүхдүүд урилгагүйгээр шууд нэмэгдэнэ.</div></div>` : '';
+    return modal(`${t.label} групп үүсгэх`, `
+      <div class="field"><label for="gname">Группын нэр</label><input id="gname" maxlength="50" value="${esc(D.name || t.defName)}" placeholder="Жишээ нь: ${t.defName || 'Сагсны баг'}"></div>
+      ${kids}
+      <div class="field"><label for="inv">${D.type === 'family' ? 'Насанд хүрсэн гишүүд урих' : 'Гишүүн урих'} (заавал биш)</label>
+        <div class="inline"><input id="inv" placeholder="Утасны дугаар эсвэл имэйл"><button class="btn outline" data-act="add-invitee" style="flex:none">Нэмэх</button></div>
+        <div class="hint" id="invHint">Урилга хүлээн авсан хүн группт нэгдэнэ. Hamuga ID-гүй хүнд бүртгүүлэх холбоос очно.</div>
+        <div class="chips">${D.invitees.map((v, i) => `<span class="chip">${esc(v)}<button data-act="rm-invitee" data-i="${i}" aria-label="Хасах">${I.close}</button></span>`).join('')}</div></div>`,
+      footer('back-type', 'Групп үүсгэх', 'create-simple'), '2/2');
+  },
+
+  reg: () => {
+    const f = D.found;
+    let res = '';
+    if (f === 'notfound') res = `<div class="note bad">${I.warn}<div>Регистр олдсонгүй. Дугаараа шалгаад дахин оролдоно уу.</div></div>`;
+    else if (f && mine()) res = `<div class="note info">${I.info}<div>Та «${esc(mine().name)}» байгууллагад аль хэдийн байна.</div></div>`;
+    else if (f) {
+      const r = REGISTRY[D.reg];
+      res = `<div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}</div><div class="sub">Улсын бүртгэлийн мэдээлэл</div></div></div></div>
+        <p class="lead" style="margin:0">Энэ байгууллага мөн үү?</p>` +
+        (r.registered ? `<div class="note warn">${I.warn}<div>Энэ байгууллага Hamuga ID-д аль хэдийн бүртгэгдсэн байна. Та байгууллагад нь нэгдэж болно.</div></div>`
+        : r.director === 'me' ? `<div class="note ok">${I.verified}<div>Та энэ байгууллагын гүйцэтгэх удирдлага тул байгууллага шууд баталгаажна.</div></div>`
+        : `<div class="note info">${I.info}<div>Гүйцэтгэх удирдлага: <b>${r.directorMasked}</b>. Удирдлага ДАН-аар зөвшөөрсний дараа байгууллага баталгаажна. Удирдлага таны role-ийг (Эзэмшигч эсвэл Админ) сонгоно.</div></div>`);
+    }
+    const r = f && f !== 'notfound' ? REGISTRY[D.reg] : null;
+    const next = !r ? footer('back-type', 'Шалгах', 'check-reg') :
+      mine() ? footer('back-type', 'Байгууллагыг нээх', 'open-mine') :
+      r.registered ? footer('back-type', 'Нэгдэх', 'to-join') :
+      r.director === 'me' ? footer('back-type', 'Бүртгэх', 'register-me') : footer('back-type', 'Удирдлагаас зөвшөөрөл хүсэх', 'register-ask');
+    return modal('Байгууллага бүртгэх', `
+      <div class="field" id="regField"><label for="reg">Регистр эсвэл ТТД</label>
+        <div class="inline"><input id="reg" inputmode="numeric" maxlength="14" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234"><button class="btn outline" data-act="check-reg" style="flex:none">Шалгах</button></div>
+        <div class="hint">ХХК, ТББ, хувиараа бизнес эрхлэгч гэх мэт бүх төрлийн байгууллагад ижил. Төрлийг асуухгүй.</div>
+        <div class="testhint">Туршилт: <code data-act="try-reg" data-v="5551234">5551234</code> та удирдлага · <code data-act="try-reg" data-v="6201258">6201258</code> өөр удирдлага · <code data-act="try-reg" data-v="2034567">2034567</code> аль хэдийн бүртгэлтэй</div></div>
+      ${res}`, next, '2/2');
+  },
+
+  join: () => {
+    const r = REGISTRY[D.reg], hasDomain = (r.domains || []).length > 0;
+    if (!hasDomain) D.joinMethod = 'request';
+    return modal('Байгууллагад нэгдэх', `
+      <div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}<span class="pill info">${I.verified}Баталгаажсан</span></div><div class="sub">Hamuga ID-д бүртгэлтэй</div></div></div></div>
+      <p class="lead">Байгууллагад харьяалагддагаа хэрхэн баталгаажуулах вэ?</p>
+      <div role="radiogroup" style="display:flex;flex-direction:column;gap:10px">
+      ${hasDomain ? `<button class="opt" role="radio" data-act="join-method" data-m="email" aria-checked="${D.joinMethod === 'email'}"><span class="radio"></span>
+        <div style="flex:1"><div class="t">Ажлын имэйлээр <span class="pill brand">Санал болгох</span></div><div class="d">@${r.domains.join(', @')} имэйлдээ ирсэн кодоор шууд нэгдэнэ. Админы зөвшөөрөл хэрэггүй.</div></div></button>` : ''}
+      <button class="opt" role="radio" data-act="join-method" data-m="request" aria-checked="${D.joinMethod === 'request'}"><span class="radio"></span>
+        <div style="flex:1"><div class="t">Нэгдэх хүсэлт илгээх</div><div class="d">Байгууллагын админ зөвшөөрнө. Админ таны ДАН-аар баталгаажсан нэр, утасны сүүлийн 4 оронг харна.</div></div></button></div>
+      ${D.joinMethod === 'email' && hasDomain ? `<div class="field" id="emailField"><label for="email">Ажлын имэйл</label>
+          <input id="email" type="email" inputmode="email" placeholder="нэр@${r.domains[0]}" value="${esc(D.email)}"><div class="hint" id="emailHint">Энэ имэйл рүү 6 оронтой баталгаажуулах код илгээнэ.</div></div>`
+        : `<div class="field"><label for="note">Тайлбар (заавал биш)</label><input id="note" maxlength="80" placeholder="Жишээ нь: Борлуулалтын алба" value="${esc(D.note)}"></div>`}`,
+      D.joinMethod === 'email' && hasDomain ? footer('back-reg', 'Код илгээх', 'send-join-code') : footer('back-reg', 'Хүсэлт илгээх', 'send-request'));
+  },
+
+  'join-otp': () => modal('Баталгаажуулах код', otpBlock(D.email), footer('back-join', 'Баталгаажуулах', 'verify-join', true)),
+
+  'invite-accept': () => { const v = S.invites.find(x => x.id === D.inviteId);
+    return modal('Урилга хүлээн авах', `<p class="lead">${esc(v.name)} таныг гишүүнээр урьж байна.</p>
+      <p class="muted">Хүлээн авснаар группын админ таны дараах мэдээллийг харах боломжтой болно:</p>
+      <ol class="terms"><li>Овог, нэр</li><li>Бүртгэлтэй утасны дугаар</li><li>Байгууллагын имэйл (оруулсан бол)</li></ol>
+      <label class="check"><input type="checkbox" id="agree" data-act="agree"> <span>Би <a href="#">Үйлчилгээний нөхцөл</a>-ийг уншиж танилцсан, зөвшөөрч байна</span></label>`,
+      footer('close', 'Зөвшөөрөх', 'do-accept', true, 'Болих')); },
+
+  invite: () => modal('Гишүүн урих', `
+      <div class="field"><label for="inv2">Утасны дугаар эсвэл имэйл</label><input id="inv2" placeholder="Жишээ нь: 99112233 эсвэл нэр@mail.mn">
+        <div class="hint" id="inv2Hint">Админы урилгыг хүлээн авсан хүн шууд баталгаажсан гишүүн болно.</div></div>`,
+      footer('close', 'Урилга илгээх', 'do-invite', false, 'Болих')),
+
+  'domain-add': () => modal('Домэйн нэмэх', `
+      <div class="field" id="domainField"><label for="domain">Домэйн</label><input id="domain" placeholder="жишээ нь: company.mn" autocomplete="off">
+        <div class="hint" id="domainHint">Та өөрийн энэ домэйнтэй имэйлд ирсэн кодоор баталгаажуулна.</div></div>
+      <div class="field"><label for="domainEmail">Таны энэ домэйнтэй имэйл</label><input id="domainEmail" placeholder="нэр@company.mn" autocomplete="off"></div>`,
+      footer('close', 'Код илгээх', 'domain-send', false, 'Болих')),
+
+  'domain-otp': () => modal('Домэйн баталгаажуулах', otpBlock(D.email), footer('close', 'Баталгаажуулах', 'domain-verify', true, 'Болих'))
+};
+
+function openModal(name) {
+  D.modal = name; modalRoot.innerHTML = M[name]();
+  if (modalRoot.querySelector('.otp')) bindOtp();
+  const f = modalRoot.querySelector('.otp input, input:not([type=checkbox]), .type, .opt, .btn.primary:not([disabled])');
+  if (f) setTimeout(() => f.isConnected && f.focus());
+}
+function closeModal() { modalRoot.innerHTML = ''; D.modal = null; }
+
+function bindOtp() {
+  const boxes = [...modalRoot.querySelectorAll('.otp input')], btn = $('#next'), err = $('#otpErr');
+  const sync = () => { err.hidden = true; btn.disabled = boxes.map(b => b.value).join('').length !== 6; };
+  boxes.forEach((b, i) => {
+    b.addEventListener('input', () => { b.value = b.value.replace(/\D/g, '').slice(0, 1); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); sync(); });
+    b.addEventListener('keydown', e => { if (e.key === 'Backspace' && !b.value && boxes[i - 1]) boxes[i - 1].focus(); });
+    b.addEventListener('paste', e => { const t = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6); if (!t) return; e.preventDefault();
+      boxes.forEach((x, j) => x.value = t[j] || ''); sync(); (boxes[t.length] || boxes[5]).focus(); });
+  });
+}
+const otpValue = () => [...modalRoot.querySelectorAll('.otp input')].map(b => b.value).join('');
+function otpOk() { if (otpValue() === D.code) return true; $('#otpErr').hidden = false; return false; }
+
+/* ---------- Data helpers ---------- */
+function addGroup(g) { g.id = 'g' + (S.seq++); g.requests = g.requests || []; g.domains = g.domains || []; S.groups.unshift(g); return g; }
+const meMember = role => ({ name: ME.name, initials: ME.short, role, tone: 'p4', via: 'Та' });
+const sampleRequests = () => [
+  { id: 1, name: 'Батбаяр ГАНЗОРИГ', initials: 'БГ', tone: 'p1', phone: '•••• 4821', note: 'Борлуулалтын алба', when: '2 цагийн өмнө' },
+  { id: 2, name: 'Сарангэрэл ДОРЖ', initials: 'СД', tone: 'p3', phone: '•••• 1907', note: 'Шинэ ажилтан, санхүү', when: 'Өчигдөр' }
+];
+function openGroup(id) { S.page = 'group'; S.groupId = id; S.tab = 'members'; render(); }
+function validContact(v) { return /^\d{8}$/.test(v.replace(/\s/g, '')) || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v); }
+
+/* ---------- Actions ---------- */
+const A = {
+  'go-groups': () => { S.page = 'groups'; render(); },
+  create: () => { D = draft(); openModal('type'); },
+  close: () => closeModal(),
+  'pick-type': el => { D.type = el.dataset.type; D.name = ''; openModal('type'); },
+  'type-next': () => openModal(D.type === 'org' ? 'reg' : 'details'),
+  'back-type': () => { D.found = null; openModal('type'); },
+  'add-invitee': () => {
+    const inp = $('#inv'), v = inp.value.trim();
+    if (!validContact(v)) { $('#invHint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу.'; $('#invHint').style.color = 'var(--bad-ink)'; return; }
+    D.name = $('#gname').value; D.invitees.push(v); openModal('details'); $('#inv').focus();
+  },
+  'rm-invitee': el => { D.name = $('#gname').value; D.invitees.splice(+el.dataset.i, 1); openModal('details'); },
+  'create-simple': () => {
+    const name = $('#gname').value.trim();
+    if (!name) { $('#gname').focus(); $('#gname').parentElement.classList.add('invalid'); return; }
+    const kids = D.type === 'family' ? CHILDREN.filter(c => D.children.includes(c.id)).map((c, i) => ({ name: c.name, initials: c.name.split('.')[1][0], role: 'member', kind: 'child', tone: i ? 'p3' : 'p2' })) : [];
+    const inv = D.invitees.map(v => ({ name: v, initials: '?', role: 'member', state: 'invited', tone: 'p0', via: 'Урилга илгээсэн' }));
+    const g = addGroup({ type: D.type, name, role: 'owner', members: [meMember('owner'), ...kids, ...inv] });
+    closeModal(); openGroup(g.id); toast(`«${name}» групп үүслээ`);
+  },
+  'try-reg': el => { $('#reg').value = el.dataset.v; A['check-reg'](); },
+  'check-reg': () => { const v = ($('#reg') ? $('#reg').value : D.reg).replace(/\D/g, ''); D.reg = v; D.found = REGISTRY[v] ? 'ok' : 'notfound'; openModal('reg'); },
+  'register-me': () => {
+    const r = REGISTRY[D.reg]; r.registered = true; r.domains = r.domains || [];
+    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'owner', members: [meMember('owner')], requests: sampleRequests(), domains: r.domains });
+    closeModal(); openGroup(g.id); toast('Байгууллага бүртгэгдэж, баталгаажлаа');
+  },
+  'register-ask': () => {
+    const r = REGISTRY[D.reg];
+    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-director', directorMasked: r.directorMasked, role: 'owner', members: [meMember('owner')] });
+    closeModal(); openGroup(g.id); toast('Удирдлага руу зөвшөөрлийн хүсэлт илгээлээ');
+  },
+  'sim-director': () => { const g = cur(); g.status = 'verified'; REGISTRY[g.reg].registered = true; REGISTRY[g.reg].domains = g.domains; g.requests = sampleRequests(); render(); toast('Удирдлага зөвшөөрлөө. Байгууллага баталгаажлаа'); },
+  'to-join': () => { D.joinMethod = 'email'; openModal('join'); },
+  'back-reg': () => openModal('reg'),
+  'back-join': () => openModal('join'),
+  'join-method': el => { const n = $('#note'), e = $('#email'); if (n) D.note = n.value; if (e) D.email = e.value; D.joinMethod = el.dataset.m; openModal('join'); },
+  'send-join-code': () => {
+    const r = REGISTRY[D.reg], v = $('#email').value.trim().toLowerCase(), m = v.match(/^[^@\s]+@([^@\s]+\.[^@\s]+)$/), f = $('#emailField'), h = $('#emailHint');
+    if (!m) { f.classList.add('invalid'); h.textContent = 'Зөв имэйл хаяг оруулна уу.'; return; }
+    if (!r.domains.includes(m[1])) { f.classList.add('invalid'); h.innerHTML = 'Энэ имэйл байгууллагын домэйнд хамаарахгүй байна. <button class="linkbtn" data-act="join-method" data-m="request">Нэгдэх хүсэлт илгээх</button>'; return; }
+    D.email = v; D.code = newCode(); openModal('join-otp');
+  },
+  'verify-join': () => {
+    if (!otpOk()) return;
+    const r = REGISTRY[D.reg];
+    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'member',
+      members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }, { ...meMember('member'), via: 'Та · Ажлын имэйлээр нэгдсэн' }] });
+    closeModal(); openGroup(g.id); toast('Та байгууллагын баталгаажсан гишүүн боллоо');
+  },
+  'send-request': () => {
+    const r = REGISTRY[D.reg]; D.note = $('#note').value.trim();
+    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-join', role: 'member', members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }] });
+    closeModal(); openGroup(g.id); toast('Нэгдэх хүсэлт илгээгдлээ');
+  },
+  'sim-admin': () => { const g = cur(); g.status = 'verified'; g.members.push({ ...meMember('member'), via: 'Та · Нэгдэх хүсэлтээр' }); render(); toast('Админ зөвшөөрлөө. Та баталгаажсан гишүүн боллоо'); },
+  'cancel-join': () => { S.groups = S.groups.filter(g => g.id !== S.groupId); S.page = 'groups'; render(); toast('Хүсэлтийг цуцаллаа'); },
+  'open-group': el => openGroup(el.dataset.id),
+  tab: el => { S.tab = el.dataset.tab; render(); },
+  decide: el => { const g = cur(), r = g.requests.find(x => x.id === +el.dataset.id); g.requests = g.requests.filter(x => x !== r);
+    if (el.dataset.ok === '1') g.members.push({ name: r.name, initials: r.initials, role: 'member', tone: r.tone, via: 'Нэгдэх хүсэлтээр' });
+    render(); toast(el.dataset.ok === '1' ? `${r.name} баталгаажсан гишүүн боллоо` : `${r.name}-ийн хүсэлтийг татгалзлаа`); },
+  'approve-all': () => { const g = cur(), n = g.requests.length; g.requests.forEach(r => g.members.push({ name: r.name, initials: r.initials, role: 'member', tone: r.tone, via: 'Нэгдэх хүсэлтээр' })); g.requests = []; render(); toast(`${n} хүсэлтийг зөвшөөрлөө`); },
+  invite: () => openModal('invite'),
+  'do-invite': () => { const v = $('#inv2').value.trim();
+    if (!validContact(v)) { $('#inv2Hint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу.'; $('#inv2Hint').style.color = 'var(--bad-ink)'; return; }
+    cur().members.push({ name: v, initials: '?', role: 'member', state: 'invited', tone: 'p0', via: 'Урилга илгээсэн' }); closeModal(); render(); toast('Урилга илгээлээ'); },
+  'add-domain': () => openModal('domain-add'),
+  'domain-send': () => {
+    const g = cur(), d = $('#domain').value.trim().toLowerCase().replace(/^@/, ''), f = $('#domainField'), h = $('#domainHint');
+    const fail = msg => { f.classList.add('invalid'); h.textContent = msg; $('#domain').focus(); };
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return fail('Домэйн буруу байна. Жишээ нь: company.mn');
+    if (['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'mail.ru', 'icloud.com'].includes(d)) return fail('Нийтийн имэйлийн домэйныг нэмэх боломжгүй.');
+    if (g.domains.includes(d)) return fail('Энэ домэйн аль хэдийн нэмэгдсэн байна.');
+    if (Object.values(REGISTRY).some(r => r.name !== g.name && (r.domains || []).includes(d))) return fail('Энэ домэйн өөр байгууллагад бүртгэлтэй байна.');
+    const em = ($('#domainEmail').value.trim() || 'batbayar@' + d).toLowerCase();
+    if (!em.endsWith('@' + d)) return fail('Имэйл тань энэ домэйнтэй байх ёстой.');
+    D.pendingDomain = d; D.email = em; D.code = newCode(); openModal('domain-otp');
+  },
+  'domain-verify': () => { if (!otpOk()) return; cur().domains.push(D.pendingDomain); closeModal(); render(); toast('Домэйн идэвхжлээ'); },
+  'remove-domain': el => { const g = cur(); g.domains = g.domains.filter(d => d !== el.dataset.d); if (REGISTRY[g.reg]) REGISTRY[g.reg].domains = g.domains; render(); toast('Домэйн хасагдлаа. Өмнө нэгдсэн гишүүд үлдэнэ.'); },
+  'fill-code': () => { const boxes = [...modalRoot.querySelectorAll('.otp input')]; boxes.forEach((b, i) => b.value = D.code[i]); $('#next').disabled = false; $('#otpErr').hidden = true; $('#next').focus(); },
+  resend: () => { D.code = newCode(); openModal(D.modal); toast('Шинэ код илгээлээ'); },
+  'accept-invite': el => { D = draft(); D.inviteId = el.dataset.id; openModal('invite-accept'); },
+  agree: () => { $('#next').disabled = !$('#agree').checked; },
+  'do-accept': () => { const v = S.invites.find(x => x.id === D.inviteId); S.invites = S.invites.filter(x => x !== v);
+    const g = addGroup({ type: v.type, name: v.name, initials: v.initials, reg: '3301122', status: 'verified', role: 'member',
+      members: [{ name: 'Оюун БААТАР', initials: 'ОБ', role: 'owner', tone: 'p3' }, { ...meMember('member'), via: 'Та · Админы урилгаар' }] });
+    closeModal(); openGroup(g.id); toast('Та баталгаажсан гишүүн боллоо'); },
+  'decline-invite': el => { S.invites = S.invites.filter(x => x.id !== el.dataset.id); render(); toast('Урилгаас татгалзлаа'); }
+};
+const cur = () => S.groups.find(g => g.id === S.groupId);
+const mine = () => S.groups.find(g => g.type === 'org' && g.reg === D.reg);
+A['open-mine'] = () => { const g = mine(); closeModal(); openGroup(g.id); };
+
+document.addEventListener('click', e => {
+  if (e.target.matches('[data-scrim]')) return closeModal();
+  const el = e.target.closest('[data-act]');
+  if (!el) { if (e.target.closest('.menu a, .check a')) e.preventDefault(); return; }
+  if (el.tagName === 'A') e.preventDefault();
+  if (el.dataset.act === 'agree') return A.agree();
+  e.stopPropagation();
+  if (A[el.dataset.act]) A[el.dataset.act](el);
+});
+document.addEventListener('change', e => { if (e.target.matches('[data-child]')) { const id = e.target.dataset.child; D.children = e.target.checked ? [...D.children, id] : D.children.filter(x => x !== id); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && D.modal) closeModal();
+  if (e.key === 'Enter' && e.target.id === 'reg') { e.preventDefault(); A['check-reg'](); }
+  if (e.key === 'Enter' && e.target.id === 'inv') { e.preventDefault(); A['add-invitee'](); }
+});
+
+function render() {
+  side.innerHTML = sidebar();
+  const menu = $('.menu', side), c = $('[aria-current="page"]', side);
+  if (menu.scrollWidth > menu.clientWidth) menu.scrollLeft = c.getBoundingClientRect().left - menu.getBoundingClientRect().left - 12;
+  main.innerHTML = S.page === 'group' && cur() ? groupPage() : groupsPage();
+}
+render();
+</script>
+</body>
+</html>
