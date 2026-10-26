@@ -8,7 +8,7 @@
 docs/
 ├── requirements/
 │   ├── backlog-mn.md            Эпикийн story-нуудын жагсаалт, эрэмбэ, хамаарал
-│   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-031)
+│   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-032)
 └── architecture/
     └── spikes/                  Судалгаа
         └── group-org-sso-research-mn.md   SSO дээрх групп, хүүхэд нэмэх, байгууллага баталгаажуулах
