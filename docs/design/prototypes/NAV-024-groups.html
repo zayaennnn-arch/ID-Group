@@ -77,6 +77,9 @@
   .ghost.danger { color: var(--bad-ink); }
   .ghost.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
   .ghost.primary:hover { background: var(--brand-hover); }
+  .ghost:disabled { opacity: .5; cursor: default; background: var(--card); }
+  .btn.primary.danger { background: var(--bad); }
+  .btn.primary.danger:hover { background: #DC2626; }
 
   .list { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
   .list.flat { box-shadow: none; border: 1px solid var(--line); }
@@ -344,11 +347,44 @@ function groupsPage() {
     <div class="note warn">${I.warn}<div>Групп үүсгэх, байгууллага бүртгэхийн тулд таны бүртгэл ДАН баталгаажуулалт хийгдсэн буюу Түвшин 2 байх шаардлагатай.</div></div>`;
 }
 
-function memberRow(m) {
+/* Permission rules from NAV-027 (group type × role × action). */
+function can(g, action, m) {
+  const r = g.role;
+  if (g.status === 'pending-join') return false;
+  if (action === 'invite') return g.type === 'friend' || r === 'owner' || r === 'admin';
+  if (action === 'remove') {
+    if (!m || m.me || m.role === 'owner') return false;
+    if (r === 'owner') return true;
+    return r === 'admin' && g.type !== 'friend' && m.role === 'member';
+  }
+  if (action === 'role') return r === 'owner' && m && !m.me && m.state !== 'invited' && m.kind !== 'child';
+  return false;
+}
+const eligibleOwners = g => g.members.filter(m => !m.me && m.state !== 'invited' && m.kind !== 'child');
+function memberRow(m, i, g) {
   const dot = m.state === 'invited' ? 'wait' : 'ok';
   const pill = m.state === 'invited' ? '<span class="pill wait">Урилга хүлээгдэж буй</span>' : m.kind === 'child' ? '<span class="pill brand">Хүүхэд · ДАН-аар холбогдсон</span>' : '';
+  let acts = '';
+  if (m.me) acts = '';
+  else if (m.state === 'invited') acts = can(g, 'remove', m) ? `<button class="ghost danger" data-act="m-cancel" data-i="${i}">Урилга цуцлах</button>` : '';
+  else acts = (can(g, 'role', m) ? `<button class="ghost" data-act="m-role" data-i="${i}">Role солих</button>` : '')
+    + (can(g, 'remove', m) ? `<button class="ghost danger" data-act="m-remove" data-i="${i}">Хасах</button>` : '');
   return `<div class="row"><div class="ava ${m.tone || 'p0'}">${esc(m.initials)}<span class="dot ${dot}"></span></div>
-    <div class="body"><div class="name">${esc(m.name)}${pill}</div><div class="sub">${roleLabel(m.role)}${m.via ? ' · ' + m.via : ''}</div></div></div>`;
+    <div class="body"><div class="name">${esc(m.name)}${m.me ? '<span class="pill grey">Та</span>' : ''}${pill}</div><div class="sub">${roleLabel(m.role)}${m.via && !m.me ? ' · ' + m.via : ''}</div></div>
+    ${acts ? `<div class="acts">${acts}</div>` : ''}</div>`;
+}
+function settingsSection(g) {
+  if (g.status === 'pending-join') return '';
+  const row = (title, sub, btn) => `<div class="row"><div class="body"><div class="name">${title}</div><div class="sub">${sub}</div></div><div class="acts">${btn}</div></div>`;
+  const owner = g.role === 'owner', el = eligibleOwners(g).length;
+  return `<section>${head('Группын тохиргоо', '')}<div class="list">
+    ${owner ? row('Эзэмшлийг шилжүүлэх', el ? 'Өөр гишүүнийг Эзэмшигч болгоно. Та Админ болж үлдэнэ.' : 'Шилжүүлэх насанд хүрсэн гишүүн алга. Эхлээд гишүүн урина уу.',
+      `<button class="ghost" data-act="transfer" ${el ? '' : 'disabled'}>Шилжүүлэх</button>`) : ''}
+    ${row('Группээс гарах', owner ? 'Эзэмшигч гарахын өмнө эзэмшлээ шилжүүлэх шаардлагатай.' : 'Гарсны дараа группын мэдээлэл, байршил хуваалцалт танд харагдахгүй.',
+      '<button class="ghost danger" data-act="leave">Гарах</button>')}
+    ${owner ? row('Групп устгах', g.type === 'org' ? 'Бүх гишүүн хасагдаж, байгууллагын бүртгэл Hamuga ID-аас устна. Буцаах боломжгүй.' : 'Бүх гишүүн группээс хасагдана. Буцаах боломжгүй.',
+      '<button class="ghost danger" data-act="delete-group">Устгах</button>') : ''}
+  </div></section>`;
 }
 function groupPage() {
   const g = S.groups.find(x => x.id === S.groupId);
@@ -362,7 +398,7 @@ function groupPage() {
   if (g.status === 'pending-join') pend = `<div class="note info">${I.info}<div style="flex:1">Нэгдэх хүсэлт илгээгдсэн. Админ зөвшөөрөхөд та баталгаажсан гишүүн болно. 14 хоногт шийдэгдээгүй бол хүчингүй болно.
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-act="sim-admin">Туршилт: админ зөвшөөрсөн гэж үзэх</button><button class="ghost danger" data-act="cancel-join">Хүсэлт цуцлах</button></div></div></div>`;
   const canManage = g.role === 'owner' || g.role === 'admin';
-  const inviteBtn = canManage && g.status !== 'pending-join' ? `<button class="ghost brand" data-act="invite">${I.plus}Гишүүн урих</button>` : '';
+  const inviteBtn = can(g, 'invite') ? `<button class="ghost brand" data-act="invite">${I.plus}Гишүүн урих</button>` : '';
   const isOrgAdmin = g.type === 'org' && g.status === 'verified' && canManage;
   const tabs = isOrgAdmin ? `<div class="tabs" role="tablist">
       <button role="tab" data-act="tab" data-tab="members" aria-selected="${S.tab === 'members'}">Гишүүд</button>
@@ -371,7 +407,7 @@ function groupPage() {
   const tab = isOrgAdmin ? S.tab : 'members';
   let body = '';
   if (tab === 'members') body = head('Гишүүд', g.type === 'family' ? 'Хүүхдүүд «Миний хүүхэд»-ээс ДАН-аар холбогдсон тул урилгагүйгээр нэмэгдсэн.' : 'Группын гишүүд ба тэдний role', inviteBtn)
-      + `<div class="list">${g.members.map(memberRow).join('')}</div>`;
+      + `<div class="list">${g.members.map((m, i) => memberRow(m, i, g)).join('')}</div>`;
   if (tab === 'requests') body = head('Нэгдэх хүсэлтүүд', 'Ажлын имэйлээр нэгдсэн хүмүүс энд орохгүй: тэд автоматаар баталгаажна.',
       g.requests.length ? `<button class="ghost primary" data-act="approve-all">${svg('check', 'fill:#fff')}Бүгдийг зөвшөөрөх</button>` : '')
       + `<div class="list">${g.requests.length ? g.requests.map(r => `<div class="row"><div class="ava ${r.tone}">${r.initials}<span class="dot wait"></span></div>
@@ -385,7 +421,7 @@ function groupPage() {
         <div class="acts"><button class="ghost danger" data-act="remove-domain" data-d="${d}">Хасах</button></div></div>`).join('')
         : '<div class="row"><div class="body sub">Домэйн нэмээгүй байна. Нэмбэл ажилтнууд ажлын имэйлээрээ шууд нэгдэнэ.</div></div>'}</div>
       <div class="note grey" style="margin-top:12px">${I.info}<div>gmail.com, yahoo.com зэрэг нийтийн имэйлийн домэйныг нэмэх боломжгүй. Нэг домэйн зөвхөн нэг байгууллагад холбогдоно.</div></div>`;
-  return `<div>${back}</div><section>${top}</section>${pend}<section>${tabs}${body}</section>`;
+  return `<div>${back}</div><section>${top}</section>${pend}<section>${tabs}${body}</section>${tab === 'members' ? settingsSection(g) : ''}`;
 }
 
 /* ---------- Modals ---------- */
@@ -490,6 +526,27 @@ const M = {
       <div class="field"><label for="domainEmail">Таны энэ домэйнтэй имэйл</label><input id="domainEmail" placeholder="нэр@company.mn" autocomplete="off"></div>`,
       footer('close', 'Код илгээх', 'domain-send', false, 'Болих')),
 
+  confirm: () => modal(D.confirm.title, `<p class="muted" style="color:var(--text)">${D.confirm.body}</p>`,
+      `<button class="btn outline" data-act="close">Болих</button><button class="btn primary ${D.confirm.danger ? 'danger' : ''}" id="next" data-act="confirm-ok">${D.confirm.ok}</button>`),
+
+  role: () => { const m = cur().members[D.target];
+    const opt = (r, d) => `<button class="opt" role="radio" data-act="role-pick" data-r="${r}" aria-checked="${D.newRole === r}"><span class="radio"></span>
+      <div style="flex:1"><div class="t">${roleLabel(r)}</div><div class="d">${d}</div></div></button>`;
+    return modal('Role солих', `<p class="lead">${esc(m.name)}</p>
+      <div role="radiogroup" style="display:flex;flex-direction:column;gap:10px">
+        ${opt('admin', 'Гишүүн урих, хасах, нэгдэх хүсэлт шийдэх, группын мэдээлэл засах')}
+        ${opt('member', 'Группт харагдана, байршлаа хуваалцана. Удирдах эрхгүй')}</div>
+      <div class="note grey">${I.info}<div>Эзэмшигч болгохын тулд «Группын тохиргоо» → «Эзэмшлийг шилжүүлэх»-ийг ашиглана.</div></div>`,
+      footer('close', 'Хадгалах', 'role-save', false, 'Болих')); },
+
+  transfer: () => { const g = cur();
+    return modal('Эзэмшлийг шилжүүлэх', `<p class="muted">Шинэ Эзэмшигч группыг бүрэн удирдана. Та Админ болж үлдэнэ.</p>
+      <div role="radiogroup" style="display:flex;flex-direction:column;gap:10px">
+      ${g.members.map((m, i) => ({ m, i })).filter(x => eligibleOwners(g).includes(x.m)).map(({ m, i }) =>
+        `<button class="opt" role="radio" data-act="transfer-pick" data-i="${i}" aria-checked="${D.target === i}"><span class="radio"></span>
+        <div style="flex:1"><div class="t">${esc(m.name)}</div><div class="d">${roleLabel(m.role)}${m.via && !m.me ? ' · ' + m.via : ''}</div></div></button>`).join('')}</div>`,
+      footer('close', 'Шилжүүлэх', 'transfer-save', false, 'Болих')); },
+
   'domain-otp': () => modal('Домэйн баталгаажуулах', otpBlock(D.email), footer('close', 'Баталгаажуулах', 'domain-verify', true, 'Болих'))
 };
 
@@ -516,7 +573,12 @@ function otpOk() { if (otpValue() === D.code) return true; $('#otpErr').hidden =
 
 /* ---------- Data helpers ---------- */
 function addGroup(g) { g.id = 'g' + (S.seq++); g.requests = g.requests || []; g.domains = g.domains || []; S.groups.unshift(g); return g; }
-const meMember = role => ({ name: ME.name, initials: ME.short, role, tone: 'p4', via: 'Та' });
+const meMember = role => ({ name: ME.name, initials: ME.short, role, tone: 'p4', via: 'Та', me: true });
+const sampleStaff = () => [
+  { name: 'Энхжин БОЛД', initials: 'ЭБ', role: 'admin', tone: 'p3', via: 'Санхүүгийн алба' },
+  { name: 'Төгөлдөр ГАН', initials: 'ТГ', role: 'member', tone: 'p1', via: 'IT алба' },
+  { name: 'Мөнхзул ОД', initials: 'МО', role: 'member', tone: 'p2', via: 'Борлуулалтын алба' }
+];
 const sampleRequests = () => [
   { id: 1, name: 'Батбаяр ГАНЗОРИГ', initials: 'БГ', tone: 'p1', phone: '•••• 4821', note: 'Борлуулалтын алба', when: '2 цагийн өмнө' },
   { id: 2, name: 'Сарангэрэл ДОРЖ', initials: 'СД', tone: 'p3', phone: '•••• 1907', note: 'Шинэ ажилтан, санхүү', when: 'Өчигдөр' }
@@ -550,7 +612,7 @@ const A = {
   'check-reg': () => { const v = ($('#reg') ? $('#reg').value : D.reg).replace(/\D/g, ''); D.reg = v; D.found = REGISTRY[v] ? 'ok' : 'notfound'; openModal('reg'); },
   'register-me': () => {
     const r = REGISTRY[D.reg]; r.registered = true; r.domains = r.domains || [];
-    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'owner', members: [meMember('owner')], requests: sampleRequests(), domains: r.domains });
+    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'owner', members: [meMember('owner'), ...sampleStaff()], requests: sampleRequests(), domains: r.domains });
     closeModal(); openGroup(g.id); toast('Байгууллага бүртгэгдэж, баталгаажлаа');
   },
   'register-ask': () => {
@@ -558,7 +620,7 @@ const A = {
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-director', directorMasked: r.directorMasked, role: 'owner', members: [meMember('owner')] });
     closeModal(); openGroup(g.id); toast('Удирдлага руу зөвшөөрлийн хүсэлт илгээлээ');
   },
-  'sim-director': () => { const g = cur(); g.status = 'verified'; REGISTRY[g.reg].registered = true; REGISTRY[g.reg].domains = g.domains; g.requests = sampleRequests(); render(); toast('Удирдлага зөвшөөрлөө. Байгууллага баталгаажлаа'); },
+  'sim-director': () => { const g = cur(); g.status = 'verified'; REGISTRY[g.reg].registered = true; REGISTRY[g.reg].domains = g.domains; g.requests = sampleRequests(); g.members.push(...sampleStaff()); render(); toast('Удирдлага зөвшөөрлөө. Байгууллага баталгаажлаа'); },
   'to-join': () => { D.joinMethod = 'email'; openModal('join'); },
   'back-reg': () => openModal('reg'),
   'back-join': () => openModal('join'),
@@ -615,9 +677,39 @@ const A = {
     const g = addGroup({ type: v.type, name: v.name, initials: v.initials, reg: '3301122', status: 'verified', role: 'member',
       members: [{ name: 'Оюун БААТАР', initials: 'ОБ', role: 'owner', tone: 'p3' }, { ...meMember('member'), via: 'Та · Админы урилгаар' }] });
     closeModal(); openGroup(g.id); toast('Та баталгаажсан гишүүн боллоо'); },
-  'decline-invite': el => { S.invites = S.invites.filter(x => x.id !== el.dataset.id); render(); toast('Урилгаас татгалзлаа'); }
+  'decline-invite': el => { S.invites = S.invites.filter(x => x.id !== el.dataset.id); render(); toast('Урилгаас татгалзлаа'); },
+
+  /* Member management (NAV-026, NAV-027) */
+  'm-cancel': el => { const g = cur(), m = g.members[+el.dataset.i];
+    confirmBox('Урилга цуцлах', `<b>${esc(m.name)}</b> руу илгээсэн урилгыг цуцлах уу?`, 'Цуцлах', true, () => { g.members.splice(+el.dataset.i, 1); render(); toast('Урилгыг цуцаллаа'); }); },
+  'm-remove': el => { const g = cur(), m = g.members[+el.dataset.i];
+    const extra = m.kind === 'child' ? ' Хүүхэд «Миний хүүхэд»-д холбоотой хэвээр үлдэнэ.' : '';
+    confirmBox('Гишүүн хасах', `<b>${esc(m.name)}</b>-г «${esc(g.name)}» группээс хасах уу? Түүний байршил хуваалцалт энэ группт шууд зогсоно.${extra}`, 'Хасах', true,
+      () => { g.members.splice(+el.dataset.i, 1); render(); toast(`${m.name} группээс хасагдлаа`); }); },
+  'm-role': el => { const g = cur(); D.target = +el.dataset.i; D.newRole = g.members[D.target].role; openModal('role'); },
+  'role-pick': el => { D.newRole = el.dataset.r; openModal('role'); },
+  'role-save': () => { const g = cur(), m = g.members[D.target]; const changed = m.role !== D.newRole; m.role = D.newRole; closeModal(); render();
+    if (changed) toast(`${m.name} одоо ${roleLabel(m.role)} боллоо`); },
+  transfer: () => { const el = eligibleOwners(cur()); D.target = cur().members.indexOf(el[0]); openModal('transfer'); },
+  'transfer-pick': el => { D.target = +el.dataset.i; openModal('transfer'); },
+  'transfer-save': () => { const g = cur(), m = g.members[D.target];
+    g.members.forEach(x => { if (x.me) x.role = 'admin'; }); m.role = 'owner'; g.role = 'admin';
+    g.members.sort((a, b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0));
+    closeModal(); render(); toast(`${m.name} Эзэмшигч боллоо. Та одоо Админ`); },
+  leave: () => { const g = cur();
+    if (g.role === 'owner') {
+      if (eligibleOwners(g).length) return confirmBox('Группээс гарах', 'Та Эзэмшигч тул эхлээд эзэмшлээ өөр гишүүнд шилжүүлэх шаардлагатай.', 'Эзэмшил шилжүүлэх', false, () => A.transfer());
+      return confirmBox('Группээс гарах', 'Таныг гарвал группт насанд хүрсэн гишүүн үлдэхгүй тул групп устгагдана.', 'Групп устгах', true, () => removeGroup(g, 'Групп устгагдлаа'));
+    }
+    confirmBox('Группээс гарах', `«${esc(g.name)}» группээс гарах уу? Дахин нэгдэхэд урилга эсвэл зөвшөөрөл шаардлагатай.`, 'Гарах', true, () => removeGroup(g, 'Та группээс гарлаа')); },
+  'delete-group': () => { const g = cur();
+    confirmBox('Групп устгах', `«${esc(g.name)}» группыг устгах уу? ${g.members.length - 1} гишүүн хасагдана.${g.type === 'org' ? ' Байгууллагын бүртгэл Hamuga ID-аас устна.' : ''} Буцаах боломжгүй.`,
+      'Устгах', true, () => { if (g.type === 'org' && REGISTRY[g.reg]) REGISTRY[g.reg].registered = false; removeGroup(g, 'Групп устгагдлаа'); }); },
+  'confirm-ok': () => { const run = D.confirm.run; closeModal(); run(); }
 };
 const cur = () => S.groups.find(g => g.id === S.groupId);
+function confirmBox(title, body, ok, danger, run) { D.confirm = { title, body, ok, danger, run }; openModal('confirm'); }
+function removeGroup(g, msg) { S.groups = S.groups.filter(x => x !== g); S.page = 'groups'; render(); toast(msg); }
 const mine = () => S.groups.find(g => g.type === 'org' && g.reg === D.reg);
 A['open-mine'] = () => { const g = mine(); closeModal(); openGroup(g.id); };
 
