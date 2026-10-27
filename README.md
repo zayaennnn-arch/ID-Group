@@ -8,6 +8,7 @@
 docs/
 ├── requirements/
 │   ├── backlog-mn.md            Эпикийн story-нуудын жагсаалт, эрэмбэ, хамаарал
+│   ├── process-map-group-org-mn.md  Бүх үйлдлийн нэгдсэн процессын зураглал (Mermaid)
 │   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-032)
 ├── architecture/
 │   └── spikes/                  Судалгаа
@@ -20,8 +21,9 @@ docs/
 
 ## Юунаас эхэлж унших вэ
 1. [Судалгаа](docs/architecture/spikes/group-org-sso-research-mn.md): жишээ платформууд, Hamuga ID-ийн хүүхэд бүртгэх процесс, байгууллага баталгаажуулах аргууд.
-2. [Backlog](docs/requirements/backlog-mn.md): story-нуудын жагсаалт ба хүргэх дараалал.
-3. [Story-нууд](docs/requirements/stories/).
+2. [Процессын зураглал](docs/requirements/process-map-group-org-mn.md): бүх үйлдэл, ДАН-аар регистр/ТТД шалгах дараалал, төлвүүд.
+3. [Backlog](docs/requirements/backlog-mn.md): story-нуудын жагсаалт ба хүргэх дараалал.
+4. [Story-нууд](docs/requirements/stories/).
 
 ## Тэмдэглэл
 - Story файлууд Nav Agile төслийн `docs/templates/user-story.md` загвартай. `decisions.md` (D-дугаартай PO-ийн шийдвэр) руу заасан холбоосууд Nav Agile repo-д байрладаг.
