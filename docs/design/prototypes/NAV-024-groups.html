@@ -17,6 +17,8 @@
     5551234  — you are the director (verified at once)
     6201258  — someone else is the director (approval request)
     2034567  — already registered in Hamuga ID (join by work email or join request)
+  Sole-proprietor TINs (NAV-029 E): the backend calls WS100818_taxPayerInfo with pin = the signed-in citizen's own register
+  and lists the returned listTins under the field. 10203040506 and 10203040507 are yours; 99999999999 is not.
 -->
 <style>
   :root {
@@ -197,6 +199,9 @@
   ol.terms { margin: 0; padding-left: 18px; font-size: 12.5px; color: #374151; }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
   .kv dt { color: var(--text-2); } .kv dd { margin: 0; font-weight: 600; }
+  .subhead { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin: 4px 0 8px; }
+  .opt.tin { align-items: center; }
+  .opt.tin .ava { width: 36px; height: 36px; font-size: 12px; }
   .testhint { font-size: 11.5px; color: var(--text-3); }
   .testhint code { background: #F3F4F6; padding: 0 4px; border-radius: 4px; color: #374151; cursor: pointer; }
 
@@ -319,9 +324,13 @@ const CHILDREN = [ { id: 'c1', name: 'Б.Тэмүүжин', sub: 'Эрэгтэй
 /* Registry the backend would read from ХУР: legal-entity service (7-digit register) or WS100818_taxPayerInfo (sole proprietors, pin = own register). */
 const REGISTRY = {
   '5551234': { name: 'Монгол Тех ХХК', initials: 'МТ', director: 'me', directorMasked: 'Г*** Б***', registered: false },
+  '10203040506': { name: 'Ганбаатар Батбаяр', initials: 'ГБ', kind: 'tin', director: 'me', registered: false },
+  '10203040507': { name: 'Батбаяр Хүнс', initials: 'БХ', kind: 'tin', director: 'me', registered: false },
   '6201258': { name: 'ICT Group ХХК', initials: 'IG', director: 'other', directorMasked: 'Д*** Э***', registered: false },
   '2034567': { name: 'Сүлд Логистик ХХК', initials: 'СЛ', director: 'other', directorMasked: 'Ц*** Н***', registered: true, domains: ['suldlogistic.mn'] }
 };
+/* WS100818_taxPayerInfo response for pin = ME's register: listTins [{ tin, name }]. */
+const MY_TINS = ['10203040506', '10203040507'];
 const TYPES = {
   family: { label: 'Гэр бүл', icon: 'home', cls: 't-family', desc: 'Хүүхдүүд болон гэр бүлийнхэнтэйгээ байршил хуваалцах', defName: 'Манай гэр бүл' },
   org:    { label: 'Байгууллага', icon: 'org', cls: 't-org', desc: 'Байгууллагаа регистрээр бүртгэж, ажилтнуудаа нэгтгэх', defName: '' },
@@ -532,16 +541,23 @@ const M = {
     const f = D.found;
     let res = '';
     if (f === 'notfound') res = `<div class="note bad">${I.warn}<div>Регистр олдсонгүй. Дугаараа шалгаад дахин оролдоно уу.</div></div>`;
+    else if (f === 'notmine') res = `<div class="note bad">${I.warn}<div>Энэ ТТД таны нэр дээр бүртгэлгүй байна. Хувиараа бизнес эрхлэгч зөвхөн өөрийн ТТД-ээр бүртгэнэ. Хуулийн этгээд бол 7 оронтой регистрээ оруулна уу.</div></div>`;
     else if (f && mine()) res = `<div class="note info">${I.info}<div>Та «${esc(mine().name)}» байгууллагад аль хэдийн байна.</div></div>`;
     else if (f) {
       const r = REGISTRY[D.reg];
-      res = `<div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}</div><div class="sub">Улсын бүртгэлийн мэдээлэл</div></div></div></div>
+      res = `<div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}</div><div class="sub">${r.kind === 'tin' ? `Татварын ерөнхий газрын мэдээлэл · ТТД ${D.reg}` : 'Улсын бүртгэлийн мэдээлэл'}</div></div></div></div>
         <p class="lead" style="margin:0">Энэ байгууллага мөн үү?</p>` +
         (r.registered ? `<div class="note warn">${I.warn}<div>Энэ байгууллага Hamuga ID-д аль хэдийн бүртгэгдсэн байна. Та байгууллагад нь нэгдэж болно.</div></div>`
+        : r.kind === 'tin' ? `<div class="note ok">${I.verified}<div>Энэ ТТД таны регистр дээр бүртгэлтэй тул шууд баталгаажна.</div></div>`
         : r.director === 'me' ? `<div class="note ok">${I.verified}<div>Та энэ байгууллагын гүйцэтгэх удирдлага тул байгууллага шууд баталгаажна.</div></div>`
         : `<div class="note info">${I.info}<div>Гүйцэтгэх удирдлага: <b>${r.directorMasked}</b>. Удирдлага ДАН-аар зөвшөөрсний дараа байгууллага баталгаажна. Удирдлага таны role-ийг (Эзэмшигч эсвэл Админ) сонгоно.</div></div>`);
     }
-    const r = f && f !== 'notfound' ? REGISTRY[D.reg] : null;
+    const r = f === 'ok' ? REGISTRY[D.reg] : null;
+    /* NAV-029 AC 14: one-tap choices from WS100818_taxPayerInfo (pin = own register), shown until a result is on screen. */
+    const tins = r ? '' : `<div><div class="subhead">Эсвэл таны нэр дээрх татвар төлөгчөөс сонгоно уу</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${MY_TINS.map(t => { const x = REGISTRY[t]; return `<button class="opt tin" data-act="pick-tin" data-v="${t}">
+        <div class="ava sq t-org">${x.initials}</div><div style="flex:1"><div class="t">${esc(x.name)}${x.registered ? '<span class="pill grey">Бүртгэгдсэн</span>' : ''}</div><div class="d">ТТД ${t} · Хувиараа бизнес эрхлэгч</div></div>${I.chev}</button>`; }).join('')}</div>
+      <div class="hint" style="margin-top:6px">Татварын ерөнхий газрын мэдээллээс таны регистрээр олсон.</div></div>`;
     const next = !r ? footer('back-type', 'Шалгах', 'check-reg') :
       mine() ? footer('back-type', 'Байгууллагыг нээх', 'open-mine') :
       r.registered ? footer('back-type', 'Нэгдэх', 'to-join') :
@@ -549,9 +565,9 @@ const M = {
     return modal('Байгууллага бүртгэх', `
       <div class="field" id="regField"><label for="reg">Регистр эсвэл ТТД</label>
         <div class="inline"><input id="reg" inputmode="numeric" maxlength="20" autocomplete="off" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234"><button class="btn outline" data-act="check-reg" style="flex:none">Шалгах</button></div>
-        <div class="hint">7 орон бичмэгц автоматаар шална. ХХК, ТББ, хувиараа бизнес эрхлэгч гэх мэт бүх төрөлд ижил.</div>
-        <div class="testhint">Туршилт: <code data-act="try-reg" data-v="5551234">5551234</code> та удирдлага · <code data-act="try-reg" data-v="6201258">6201258</code> өөр удирдлага · <code data-act="try-reg" data-v="2034567">2034567</code> аль хэдийн бүртгэлтэй</div></div>
-      ${res}`, next, [1, STEPS.org]);
+        <div class="hint">Хуулийн этгээдийн 7 оронтой регистрийг бичмэгц автоматаар шална. ТТД бичсэн бол «Шалгах»-ыг дарна.</div>
+        <div class="testhint">Туршилт: <code data-act="try-reg" data-v="5551234">5551234</code> та удирдлага · <code data-act="try-reg" data-v="6201258">6201258</code> өөр удирдлага · <code data-act="try-reg" data-v="2034567">2034567</code> аль хэдийн бүртгэлтэй · <code data-act="try-reg" data-v="99999999999">99999999999</code> өөр хүний ТТД</div></div>
+      ${tins}${res}`, next, [1, STEPS.org]);
   },
 
   join: () => {
@@ -715,8 +731,11 @@ const A = {
   'check-reg': () => {
     const v = ($('#reg') ? $('#reg').value : D.reg).replace(/\D/g, ''); D.reg = v;
     if (!v) { $('#reg').focus(); return; }
-    busy(modalRoot.querySelector('.inline [data-act="check-reg"]') || $('#next'), 'Шалгаж байна', () => { D.found = REGISTRY[v] ? 'ok' : 'notfound'; openModal('reg'); });
+    /* 7 digits = legal-entity register; any other number = TIN, matched only against the user's own listTins (AC 15–16). */
+    const found = v.length === 7 ? (REGISTRY[v] && !REGISTRY[v].kind ? 'ok' : 'notfound') : (MY_TINS.includes(v) ? 'ok' : 'notmine');
+    busy(modalRoot.querySelector('.inline [data-act="check-reg"]') || $('#next'), 'Шалгаж байна', () => { D.found = found; openModal('reg'); });
   },
+  'pick-tin': el => { D.reg = el.dataset.v; D.found = 'ok'; openModal('reg'); },
   'register-me': () => {
     const r = REGISTRY[D.reg]; r.registered = true; r.domains = r.domains || [];
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'owner', members: [meMember('owner'), ...sampleStaff()], requests: sampleRequests(), domains: r.domains });
@@ -864,7 +883,9 @@ document.addEventListener('change', e => { if (e.target.matches('[data-child]'))
 document.addEventListener('input', e => {
   if (e.target.id !== 'reg') return;
   const d = e.target.value.replace(/\D/g, '');
-  if (d.length === 7 && d !== D.autoReg) { D.autoReg = d; A['check-reg'](); }
+  /* Wait for a pause so a longer TIN is not checked as a register after its 7th digit. */
+  clearTimeout(D.regTimer);
+  if (d.length === 7 && d !== D.autoReg) D.regTimer = setTimeout(() => { if ($('#reg') && $('#reg').value.replace(/\D/g, '') === d) { D.autoReg = d; A['check-reg'](); } }, 700);
 });
 document.addEventListener('keydown', e => {
   const pop = $('.pop');
