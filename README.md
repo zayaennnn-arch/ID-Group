@@ -9,8 +9,10 @@ docs/
 ├── requirements/
 │   ├── backlog-mn.md            Эпикийн story-нуудын жагсаалт, эрэмбэ, хамаарал
 │   ├── process-map-group-org-mn.md  Бүх үйлдлийн нэгдсэн процессын зураглал (Mermaid)
-│   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-032)
+│   └── stories/                 Хэрэглэгчийн түүх + хүлээн авах шалгуур (NAV-024…NAV-035)
 ├── architecture/
+│   ├── adr/
+│   │   └── 0020-hamuga-id-vs-apps-group-responsibilities-mn.md   ID ба апп-уудын үүргийн хуваарь
 │   └── spikes/                  Судалгаа
 │       ├── group-org-sso-research-mn.md   SSO дээрх групп, хүүхэд нэмэх, байгууллага баталгаажуулах
 │       └── yandex-2gis-groups-location-research-mn.md   Yandex ID, Yandex Бизнес, 2ГИС, Kakao: групп, байршил хуваалцах хаана байдаг вэ
@@ -21,6 +23,7 @@ docs/
 ```
 
 ## Юунаас эхэлж унших вэ
+0. [ADR-0020](docs/architecture/adr/0020-hamuga-id-vs-apps-group-responsibilities-mn.md): юу Hamuga ID-д, юу газрын зургийн апп, POI engine, төлбөрийн системд байх вэ.
 1. [Судалгаа](docs/architecture/spikes/group-org-sso-research-mn.md): жишээ платформууд, Hamuga ID-ийн хүүхэд бүртгэх процесс, байгууллага баталгаажуулах аргууд.
 2. [Yandex, 2ГИС-ийн судалгаа](docs/architecture/spikes/yandex-2gis-groups-location-research-mn.md): ID ба апп-уудын үүргийн хуваарь.
 3. [Процессын зураглал](docs/requirements/process-map-group-org-mn.md): бүх үйлдэл, ДАН-аар регистр/ТТД шалгах дараалал, төлвүүд.
