@@ -202,7 +202,40 @@
 
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111827; color: #fff; border-radius: 10px; padding: 12px 16px;
     font-size: 13px; box-shadow: var(--modal-shadow); display: none; z-index: 40; max-width: calc(100% - 32px); }
-  .toast.show { display: block; }
+  .toast.show { display: flex; align-items: center; gap: 16px; }
+  .toast .undo { background: none; border: 0; color: #C4B5FD; font-weight: 700; cursor: pointer; padding: 4px 0; min-height: 32px; }
+
+  /* Goal-gradient: named steps instead of «1/2» */
+  .stepper { display: flex; gap: 6px; padding: 12px 20px 0; }
+  .stepper .s { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--text-3); min-width: 0; }
+  .stepper .s i { height: 4px; border-radius: 2px; background: var(--line-2); display: block; }
+  .stepper .s.done i, .stepper .s.on i { background: var(--brand); }
+  .stepper .s.on { color: var(--brand); font-weight: 600; }
+  .stepper .s.done { color: var(--text-2); }
+  /* Doherty threshold: immediate feedback while the system works */
+  .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
+  /* Peak-end: a clear success moment with the next step */
+  .success { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0 4px; }
+  .success .mark { width: 64px; height: 64px; border-radius: 50%; background: var(--ok-soft); color: var(--ok-ink); display: grid; place-items: center; }
+  .success .mark.wait { background: var(--wait-soft); color: var(--wait-ink); }
+  .success .mark svg { width: 32px; height: 32px; fill: currentColor; }
+  .success h4 { margin: 0; font-size: 17px; }
+  .success p { margin: 0; color: var(--text-2); font-size: 13px; }
+  /* Hick / Jakob: one «⋯» menu per row instead of several buttons */
+  .kebab { width: 36px; padding: 0; justify-content: center; font-size: 18px; letter-spacing: 1px; }
+  .pop { position: fixed; z-index: 25; background: #fff; border-radius: 10px; box-shadow: var(--modal-shadow); padding: 6px; min-width: 190px; }
+  .pop button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 10px 12px; border: 0; background: none; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13.5px; min-height: 40px; }
+  .pop button:hover, .pop button:focus-visible { background: var(--hover); outline: none; }
+  .pop button.danger { color: var(--bad-ink); }
+  /* Common region: destructive settings grouped apart */
+  .danger-zone { border: 1px solid #FECACA; box-shadow: none; }
+  .zone-label { font-size: 12px; font-weight: 600; color: var(--bad-ink); margin: 16px 0 8px; }
+  .stack-s { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+  .stack-s .ava { width: 22px; height: 22px; font-size: 9px; border: 2px solid #fff; margin-left: -6px; }
+  .stack-s .ava:first-child { margin-left: 0; }
+  .count.soft { background: var(--wait-soft); color: var(--wait-ink); margin-left: 0; font-weight: 600; padding: 0 8px; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   @media (max-width: 840px) {
@@ -226,6 +259,16 @@
     .otp input { width: 100%; }
   }
   @media (max-width: 420px) { .types { grid-template-columns: 1fr; } }
+  /* Fitts: on phones the dialog becomes a bottom sheet, actions stay in thumb reach, targets ≥ 44 px */
+  @media (max-width: 600px) {
+    .scrim { place-items: end stretch; padding: 0; }
+    .modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 92vh; }
+    .modal-f { position: sticky; bottom: 0; background: #fff; padding-top: 12px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    .btn { min-height: 48px; }
+    .ghost { height: 44px; }
+    .kebab { width: 44px; }
+  }
+  @media (max-width: 840px) { .row .acts.keep { width: auto; padding-left: 0; } }
 </style>
 </head>
 <body>
@@ -299,7 +342,29 @@ const $ = (s, r = document) => r.querySelector(s);
 const main = $('#main'), side = $('#sidebar'), modalRoot = $('#modalRoot');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const newCode = () => String(Math.floor(100000 + Math.random() * 900000));
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800); }
+/* Forgiveness (Jakob): low-risk actions run at once and offer «Буцаах» for 5 s instead of a confirm dialog. */
+function toast(msg, undo) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button class="undo" id="undoBtn">Буцаах</button>' : ''}`;
+  t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), undo ? 5000 : 2800);
+  if (undo) $('#undoBtn').onclick = () => { t.classList.remove('show'); undo(); };
+}
+/* Doherty threshold: show progress at once while the (simulated) server works. */
+function busy(btn, label, fn, ms = 450) {
+  if (!btn || btn.dataset.busy) return;
+  btn.dataset.busy = '1'; btn.disabled = true; btn.innerHTML = `<span class="spin" aria-hidden="true"></span>${label}`;
+  setTimeout(fn, ms);
+}
+/* Postel: accept «+976 9911-2233», «9911 2233», upper-case e-mail… and normalise. */
+function normContact(v) {
+  v = v.trim(); if (v.includes('@')) return v.toLowerCase();
+  let d = v.replace(/[\s\-().]/g, '');
+  if (d.startsWith('+976')) d = d.slice(4); else if (d.startsWith('976') && d.length === 11) d = d.slice(3);
+  return d;
+}
+const STEPS = { simple: ['Төрөл', 'Мэдээлэл'], org: ['Төрөл', 'Регистр', 'Баталгаажуулалт'], join: ['Төрөл', 'Регистр', 'Нэгдэх арга', 'Код'] };
+const stepper = (i, labels) => `<div class="stepper" aria-label="Алхам ${i + 1} / ${labels.length}">${labels.map((l, k) =>
+  `<div class="s ${k < i ? 'done' : k === i ? 'on' : ''}" ${k === i ? 'aria-current="step"' : ''}><i></i><span>${l}</span></div>`).join('')}</div>`;
 
 /* ---------- Page parts ---------- */
 function sidebar() {
@@ -336,9 +401,9 @@ function groupsPage() {
   const list = S.groups.length
     ? `<div class="list">${S.groups.map(g => `<div class="row click" data-act="open-group" data-id="${g.id}">
         ${typeAva(g.type, g.initials, g.type === 'org' ? (g.status === 'verified' ? 'ok' : 'wait') : 'ok')}
-        <div class="body"><div class="name">${esc(g.name)}<span class="pill grey">${TYPES[g.type].label}</span>${statusPill(g)}</div>
-        <div class="sub">${g.members.length} гишүүн · Таны role: ${roleLabel(g.role)}</div></div>
-        <div class="acts"><button class="ghost" data-act="open-group" data-id="${g.id}">Дэлгэрэнгүй ${svg('arrow')}</button></div></div>`).join('')}</div>`
+        <div class="body"><div class="name">${esc(g.name)}<span class="pill grey">${TYPES[g.type].label}</span>${statusPill(g)}${g.role !== 'member' && g.requests.length ? `<span class="count soft">${g.requests.length} хүсэлт</span>` : ''}</div>
+        <div class="sub"><span class="stack-s" aria-hidden="true">${g.members.slice(0, 3).map(m => `<span class="ava ${m.tone || 'p0'}">${esc(m.initials)}</span>`).join('')}</span>${g.members.length} гишүүн · Таны role: ${roleLabel(g.role)}</div></div>
+        <div class="acts keep"><button class="ghost" data-act="open-group" data-id="${g.id}" aria-label="${esc(g.name)}: дэлгэрэнгүй">Нээх ${svg('arrow')}</button></div></div>`).join('')}</div>`
     : `<div class="empty"><div class="stack">${typeAva('family')}<div class="ava mid t-org sq">${svg('org', 'width:22px;height:22px')}</div>${typeAva('friend')}</div>
         <h3>Групп үүсгээгүй</h3><p>Гэр бүл, байгууллага, найз нөхөд болон бусад зорилгоор групп үүсгэнэ үү.</p>
         <div style="margin-top:10px"><button class="btn primary" data-act="create">${I.plus}Групп үүсгэх</button></div></div>`;
@@ -364,22 +429,21 @@ const eligibleOwners = g => g.members.filter(m => !m.me && m.state !== 'invited'
 function memberRow(m, i, g) {
   const dot = m.state === 'invited' ? 'wait' : 'ok';
   const pill = m.state === 'invited' ? '<span class="pill wait">Урилга хүлээгдэж буй</span>' : m.kind === 'child' ? '<span class="pill brand">Хүүхэд · ДАН-аар холбогдсон</span>' : '';
-  let acts = '';
-  if (m.me) acts = '';
-  else if (m.state === 'invited') acts = can(g, 'remove', m) ? `<button class="ghost danger" data-act="m-cancel" data-i="${i}">Урилга цуцлах</button>` : '';
-  else acts = (can(g, 'role', m) ? `<button class="ghost" data-act="m-role" data-i="${i}">Role солих</button>` : '')
-    + (can(g, 'remove', m) ? `<button class="ghost danger" data-act="m-remove" data-i="${i}">Хасах</button>` : '');
+  const hasActs = !m.me && (m.state === 'invited' ? can(g, 'remove', m) : can(g, 'role', m) || can(g, 'remove', m));
+  const acts = hasActs ? `<button class="ghost kebab" data-act="m-menu" data-i="${i}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(m.name)}: үйлдлүүд">⋯</button>` : '';
   return `<div class="row"><div class="ava ${m.tone || 'p0'}">${esc(m.initials)}<span class="dot ${dot}"></span></div>
     <div class="body"><div class="name">${esc(m.name)}${m.me ? '<span class="pill grey">Та</span>' : ''}${pill}</div><div class="sub">${roleLabel(m.role)}${m.via && !m.me ? ' · ' + m.via : ''}</div></div>
-    ${acts ? `<div class="acts">${acts}</div>` : ''}</div>`;
+    ${acts ? `<div class="acts keep">${acts}</div>` : ''}</div>`;
 }
 function settingsSection(g) {
   if (g.status === 'pending-join') return '';
-  const row = (title, sub, btn) => `<div class="row"><div class="body"><div class="name">${title}</div><div class="sub">${sub}</div></div><div class="acts">${btn}</div></div>`;
+  const row = (title, sub, btn) => `<div class="row"><div class="body"><div class="name">${title}</div><div class="sub">${sub}</div></div><div class="acts keep">${btn}</div></div>`;
   const owner = g.role === 'owner', el = eligibleOwners(g).length;
-  return `<section>${head('Группын тохиргоо', '')}<div class="list">
-    ${owner ? row('Эзэмшлийг шилжүүлэх', el ? 'Өөр гишүүнийг Эзэмшигч болгоно. Та Админ болж үлдэнэ.' : 'Шилжүүлэх насанд хүрсэн гишүүн алга. Эхлээд гишүүн урина уу.',
-      `<button class="ghost" data-act="transfer" ${el ? '' : 'disabled'}>Шилжүүлэх</button>`) : ''}
+  return `<section>${head('Группын тохиргоо', '')}
+    ${owner ? `<div class="list">${row('Эзэмшлийг шилжүүлэх', el ? 'Өөр гишүүнийг Эзэмшигч болгоно. Та Админ болж үлдэнэ.' : 'Шилжүүлэх насанд хүрсэн гишүүн алга. Эхлээд гишүүн урина уу.',
+      `<button class="ghost" data-act="transfer" ${el ? '' : 'disabled'}>Шилжүүлэх</button>`)}</div>` : ''}
+    <div class="zone-label">Аюултай бүс</div>
+    <div class="list danger-zone">
     ${row('Группээс гарах', owner ? 'Эзэмшигч гарахын өмнө эзэмшлээ шилжүүлэх шаардлагатай.' : 'Гарсны дараа группын мэдээлэл, байршил хуваалцалт танд харагдахгүй.',
       '<button class="ghost danger" data-act="leave">Гарах</button>')}
     ${owner ? row('Групп устгах', g.type === 'org' ? 'Бүх гишүүн хасагдаж, байгууллагын бүртгэл Hamuga ID-аас устна. Буцаах боломжгүй.' : 'Бүх гишүүн группээс хасагдана. Буцаах боломжгүй.',
@@ -425,15 +489,16 @@ function groupPage() {
 }
 
 /* ---------- Modals ---------- */
-function modal(title, body, foot, step = '') {
+function modal(title, body, foot, steps) {
   return `<div class="scrim" data-scrim><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
-    <div class="modal-h"><h3 id="mt">${title}</h3>${step ? `<span class="step">${step}</span>` : ''}<button class="x" data-act="close" aria-label="Хаах">${I.close}</button></div>
+    <div class="modal-h"><h3 id="mt">${title}</h3><button class="x" data-act="close" aria-label="Хаах">${I.close}</button></div>
+    ${steps ? stepper(steps[0], steps[1]) : ''}
     <div class="modal-b">${body}</div>${foot ? `<div class="modal-f">${foot}</div>` : ''}</div></div>`;
 }
 function otpBlock(target) {
-  return `<p class="muted"><b style="color:var(--text)">${esc(target)}</b> хаяг руу илгээсэн 6 оронтой кодыг оруулна уу. Код 10 минут хүчинтэй.</p>
-    <div class="otp" role="group" aria-label="Баталгаажуулах код">${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" maxlength="1" aria-label="${i + 1}-р орон">`).join('')}</div>
-    <div class="democode">${svg('mail', 'width:18px;height:18px;fill:currentColor')}<span>Туршилтын код:</span><b>${D.code}</b><button class="linkbtn fill" data-act="fill-code">Бөглөх</button></div>
+  return `<p class="muted"><b style="color:var(--text)">${esc(target)}</b> хаяг руу илгээсэн 6 оронтой кодыг оруулна уу. 6 дахь орныг бөглөхөд автоматаар шалгана. Код 10 минут хүчинтэй.</p>
+    <div class="otp" role="group" aria-label="Баталгаажуулах код">${Array.from({ length: 6 }, (_, i) => `<input inputmode="numeric" autocomplete="${i ? 'off' : 'one-time-code'}" maxlength="1" aria-label="${i + 1}-р орон">`).join('')}</div>
+    <div class="democode">${svg('mail', 'width:18px;height:18px;fill:currentColor')}<span>Туршилтын код:</span><b>${D.code.slice(0, 3)} ${D.code.slice(3)}</b><button class="linkbtn fill" data-act="fill-code">Бөглөх</button></div>
     <div class="note bad" id="otpErr" hidden>${I.warn}<div>Код буруу байна. Дахин оролдоно уу.</div></div>
     <div><button class="linkbtn" data-act="resend">Код дахин илгээх</button></div>`;
 }
@@ -444,7 +509,7 @@ const M = {
   type: () => modal('Групп үүсгэх', `<p class="lead">Ямар төрлийн групп үүсгэх вэ?</p>
       <div class="types" role="radiogroup">${Object.entries(TYPES).map(([k, t]) => `<button class="type" role="radio" data-act="pick-type" data-type="${k}" aria-checked="${D.type === k}">
         ${typeAva(k)}<div class="t">${t.label}${k === 'org' ? '<span class="pill brand">Баталгаажуулалттай</span>' : ''}</div><div class="d">${t.desc}</div></button>`).join('')}</div>`,
-      footer('close', 'Үргэлжлүүлэх', 'type-next', !D.type, 'Болих'), '1/2'),
+      footer('close', 'Үргэлжлүүлэх', 'type-next', !D.type, 'Болих'), [0, D.type === 'org' ? STEPS.org : STEPS.simple]),
 
   details: () => {
     const t = TYPES[D.type];
@@ -457,10 +522,10 @@ const M = {
       <div class="field"><label for="gname">Группын нэр</label><input id="gname" maxlength="50" value="${esc(D.name || t.defName)}" placeholder="Жишээ нь: ${t.defName || 'Сагсны баг'}"></div>
       ${kids}
       <div class="field"><label for="inv">${D.type === 'family' ? 'Насанд хүрсэн гишүүд урих' : 'Гишүүн урих'} (заавал биш)</label>
-        <div class="inline"><input id="inv" placeholder="Утасны дугаар эсвэл имэйл"><button class="btn outline" data-act="add-invitee" style="flex:none">Нэмэх</button></div>
-        <div class="hint" id="invHint">Урилга хүлээн авсан хүн группт нэгдэнэ. Hamuga ID-гүй хүнд бүртгүүлэх холбоос очно.</div>
-        <div class="chips">${D.invitees.map((v, i) => `<span class="chip">${esc(v)}<button data-act="rm-invitee" data-i="${i}" aria-label="Хасах">${I.close}</button></span>`).join('')}</div></div>`,
-      footer('back-type', 'Групп үүсгэх', 'create-simple'), '2/2');
+        <div class="inline"><input id="inv" placeholder="Утас эсвэл имэйл, таслалаар олныг" autocomplete="off"><button class="btn outline" data-act="add-invitee" style="flex:none">Нэмэх</button></div>
+        <div class="hint" id="invHint">Enter эсвэл «Нэмэх» дарна. Hamuga ID-гүй хүнд бүртгүүлэх холбоос очно.</div>
+        <div class="chips">${D.invitees.map((v, i) => `<span class="chip">${esc(v)}<button data-act="rm-invitee" data-i="${i}" aria-label="${esc(v)}-г хасах">${I.close}</button></span>`).join('')}</div></div>`,
+      footer('back-type', 'Групп үүсгэх', 'create-simple'), [1, STEPS.simple]);
   },
 
   reg: () => {
@@ -483,10 +548,10 @@ const M = {
       r.director === 'me' ? footer('back-type', 'Бүртгэх', 'register-me') : footer('back-type', 'Удирдлагаас зөвшөөрөл хүсэх', 'register-ask');
     return modal('Байгууллага бүртгэх', `
       <div class="field" id="regField"><label for="reg">Регистр эсвэл ТТД</label>
-        <div class="inline"><input id="reg" inputmode="numeric" maxlength="14" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234"><button class="btn outline" data-act="check-reg" style="flex:none">Шалгах</button></div>
-        <div class="hint">ХХК, ТББ, хувиараа бизнес эрхлэгч гэх мэт бүх төрлийн байгууллагад ижил. Төрлийг асуухгүй.</div>
+        <div class="inline"><input id="reg" inputmode="numeric" maxlength="20" autocomplete="off" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234"><button class="btn outline" data-act="check-reg" style="flex:none">Шалгах</button></div>
+        <div class="hint">7 орон бичмэгц автоматаар шална. ХХК, ТББ, хувиараа бизнес эрхлэгч гэх мэт бүх төрөлд ижил.</div>
         <div class="testhint">Туршилт: <code data-act="try-reg" data-v="5551234">5551234</code> та удирдлага · <code data-act="try-reg" data-v="6201258">6201258</code> өөр удирдлага · <code data-act="try-reg" data-v="2034567">2034567</code> аль хэдийн бүртгэлтэй</div></div>
-      ${res}`, next, '2/2');
+      ${res}`, next, [1, STEPS.org]);
   },
 
   join: () => {
@@ -503,10 +568,16 @@ const M = {
       ${D.joinMethod === 'email' && hasDomain ? `<div class="field" id="emailField"><label for="email">Ажлын имэйл</label>
           <input id="email" type="email" inputmode="email" placeholder="нэр@${r.domains[0]}" value="${esc(D.email)}"><div class="hint" id="emailHint">Энэ имэйл рүү 6 оронтой баталгаажуулах код илгээнэ.</div></div>`
         : `<div class="field"><label for="note">Тайлбар (заавал биш)</label><input id="note" maxlength="80" placeholder="Жишээ нь: Борлуулалтын алба" value="${esc(D.note)}"></div>`}`,
-      D.joinMethod === 'email' && hasDomain ? footer('back-reg', 'Код илгээх', 'send-join-code') : footer('back-reg', 'Хүсэлт илгээх', 'send-request'));
+      D.joinMethod === 'email' && hasDomain ? footer('back-reg', 'Код илгээх', 'send-join-code') : footer('back-reg', 'Хүсэлт илгээх', 'send-request'), [2, STEPS.join]);
   },
 
-  'join-otp': () => modal('Баталгаажуулах код', otpBlock(D.email), footer('back-join', 'Баталгаажуулах', 'verify-join', true)),
+  'join-otp': () => modal('Баталгаажуулах код', otpBlock(D.email), footer('back-join', 'Баталгаажуулах', 'verify-join', true), [3, STEPS.join]),
+
+  success: () => { const s = D.success;
+    return modal(s.heading, `<div class="success"><div class="mark ${s.wait ? 'wait' : ''}">${s.wait ? I.info : I.check}</div>
+        <h4>${s.title}</h4><p>${s.text}</p></div>`,
+      s.act === 'close' ? `<button class="btn primary" id="next" data-act="close">${s.cta}</button>`
+        : `<button class="btn outline" data-act="close">Дараа</button><button class="btn primary" id="next" data-act="${s.act}">${s.cta}</button>`); },
 
   'invite-accept': () => { const v = S.invites.find(x => x.id === D.inviteId);
     return modal('Урилга хүлээн авах', `<p class="lead">${esc(v.name)} таныг гишүүнээр урьж байна.</p>
@@ -550,17 +621,26 @@ const M = {
   'domain-otp': () => modal('Домэйн баталгаажуулах', otpBlock(D.email), footer('close', 'Баталгаажуулах', 'domain-verify', true, 'Болих'))
 };
 
+/* Accessibility: remember what opened the dialog and return focus there; Tab stays inside the dialog. */
+let opener = null;
 function openModal(name) {
+  closePop();
+  if (!modalRoot.innerHTML && document.activeElement !== document.body) opener = document.activeElement;
   D.modal = name; modalRoot.innerHTML = M[name]();
   if (modalRoot.querySelector('.otp')) bindOtp();
-  const f = modalRoot.querySelector('.otp input, input:not([type=checkbox]), .type, .opt, .btn.primary:not([disabled])');
+  const f = modalRoot.querySelector('.otp input, input:not([type=checkbox]), .type[aria-checked="true"], .type, .opt[aria-checked="true"], .btn.primary:not([disabled])');
   if (f) setTimeout(() => f.isConnected && f.focus());
 }
-function closeModal() { modalRoot.innerHTML = ''; D.modal = null; }
+function closeModal() {
+  modalRoot.innerHTML = ''; D.modal = null;
+  if (opener && opener.isConnected) opener.focus(); else { const h = main.querySelector('h2, .crumb'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+  opener = null;
+}
 
 function bindOtp() {
   const boxes = [...modalRoot.querySelectorAll('.otp input')], btn = $('#next'), err = $('#otpErr');
-  const sync = () => { err.hidden = true; btn.disabled = boxes.map(b => b.value).join('').length !== 6; };
+  /* Fewer steps: the code is checked as soon as the 6th digit is entered. */
+  const sync = () => { err.hidden = true; const full = boxes.map(b => b.value).join('').length === 6; btn.disabled = !full; if (full) setTimeout(() => btn.isConnected && !btn.dataset.busy && btn.click(), 120); };
   boxes.forEach((b, i) => {
     b.addEventListener('input', () => { b.value = b.value.replace(/\D/g, '').slice(0, 1); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); sync(); });
     b.addEventListener('keydown', e => { if (e.key === 'Backspace' && !b.value && boxes[i - 1]) boxes[i - 1].focus(); });
@@ -569,7 +649,23 @@ function bindOtp() {
   });
 }
 const otpValue = () => [...modalRoot.querySelectorAll('.otp input')].map(b => b.value).join('');
-function otpOk() { if (otpValue() === D.code) return true; $('#otpErr').hidden = false; return false; }
+function otpOk() {
+  if (otpValue() === D.code) return true;
+  const boxes = [...modalRoot.querySelectorAll('.otp input')];
+  boxes.forEach(b => b.value = ''); $('#otpErr').hidden = false; $('#next').disabled = true; boxes[0].focus();
+  return false;
+}
+/* Wraps an OTP check with the busy state; on a wrong code the inputs reset (no dead end). */
+function verifyOtp(onOk) {
+  const btn = $('#next');
+  busy(btn, 'Шалгаж байна', () => {
+    if (otpValue() === D.code) return onOk();
+    delete btn.dataset.busy; btn.innerHTML = 'Баталгаажуулах'; otpOk();
+  }, 400);
+}
+function showSuccess(s) { D.success = s; opener = null; openModal('success'); }
+/* «⋯» row menu */
+function closePop() { const p = $('.pop'); if (p) p.remove(); }
 
 /* ---------- Data helpers ---------- */
 function addGroup(g) { g.id = 'g' + (S.seq++); g.requests = g.requests || []; g.domains = g.domains || []; S.groups.unshift(g); return g; }
@@ -595,9 +691,13 @@ const A = {
   'type-next': () => openModal(D.type === 'org' ? 'reg' : 'details'),
   'back-type': () => { D.found = null; openModal('type'); },
   'add-invitee': () => {
-    const inp = $('#inv'), v = inp.value.trim();
-    if (!validContact(v)) { $('#invHint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу.'; $('#invHint').style.color = 'var(--bad-ink)'; return; }
-    D.name = $('#gname').value; D.invitees.push(v); openModal('details'); $('#inv').focus();
+    const inp = $('#inv'), parts = inp.value.split(/[,;\n]+/).map(normContact).filter(Boolean);
+    const ok = parts.filter(validContact), bad = parts.filter(p => !validContact(p));
+    if (!ok.length) { $('#invHint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу.'; $('#invHint').style.color = 'var(--bad-ink)'; return; }
+    D.name = $('#gname').value; ok.forEach(v => { if (!D.invitees.includes(v)) D.invitees.push(v); });
+    openModal('details'); $('#inv').value = bad.join(', ');
+    if (bad.length) { $('#invHint').textContent = `${bad.length} утга буруу байна: засаад дахин нэмнэ үү.`; $('#invHint').style.color = 'var(--bad-ink)'; }
+    $('#inv').focus();
   },
   'rm-invitee': el => { D.name = $('#gname').value; D.invitees.splice(+el.dataset.i, 1); openModal('details'); },
   'create-simple': () => {
@@ -606,20 +706,33 @@ const A = {
     const kids = D.type === 'family' ? CHILDREN.filter(c => D.children.includes(c.id)).map((c, i) => ({ name: c.name, initials: c.name.split('.')[1][0], role: 'member', kind: 'child', tone: i ? 'p3' : 'p2' })) : [];
     const inv = D.invitees.map(v => ({ name: v, initials: '?', role: 'member', state: 'invited', tone: 'p0', via: 'Урилга илгээсэн' }));
     const g = addGroup({ type: D.type, name, role: 'owner', members: [meMember('owner'), ...kids, ...inv] });
-    closeModal(); openGroup(g.id); toast(`«${name}» групп үүслээ`);
+    openGroup(g.id);
+    showSuccess({ heading: 'Групп үүслээ', title: `«${esc(name)}» бэлэн боллоо`,
+      text: `${kids.length ? kids.length + ' хүүхэд нэмэгдэж, ' : ''}${inv.length ? inv.length + ' хүнд урилга илгээгдлээ.' : 'Одоо гишүүдээ урина уу.'}`,
+      cta: 'Гишүүн урих', act: 'success-invite' });
   },
   'try-reg': el => { $('#reg').value = el.dataset.v; A['check-reg'](); },
-  'check-reg': () => { const v = ($('#reg') ? $('#reg').value : D.reg).replace(/\D/g, ''); D.reg = v; D.found = REGISTRY[v] ? 'ok' : 'notfound'; openModal('reg'); },
+  'check-reg': () => {
+    const v = ($('#reg') ? $('#reg').value : D.reg).replace(/\D/g, ''); D.reg = v;
+    if (!v) { $('#reg').focus(); return; }
+    busy(modalRoot.querySelector('.inline [data-act="check-reg"]') || $('#next'), 'Шалгаж байна', () => { D.found = REGISTRY[v] ? 'ok' : 'notfound'; openModal('reg'); });
+  },
   'register-me': () => {
     const r = REGISTRY[D.reg]; r.registered = true; r.domains = r.domains || [];
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'owner', members: [meMember('owner'), ...sampleStaff()], requests: sampleRequests(), domains: r.domains });
-    closeModal(); openGroup(g.id); toast('Байгууллага бүртгэгдэж, баталгаажлаа');
+    openGroup(g.id);
+    showSuccess({ heading: 'Байгууллага баталгаажлаа', title: `${esc(r.name)} бүртгэгдлээ`,
+      text: 'Та Эзэмшигч боллоо. Ажилтнууд админы зөвшөөрөлгүйгээр нэгдэхийн тулд ажлын имэйлийн домэйнээ нэмнэ үү.', cta: 'Домэйн нэмэх', act: 'success-domain' });
   },
   'register-ask': () => {
     const r = REGISTRY[D.reg];
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-director', directorMasked: r.directorMasked, role: 'owner', members: [meMember('owner')] });
-    closeModal(); openGroup(g.id); toast('Удирдлага руу зөвшөөрлийн хүсэлт илгээлээ');
+    openGroup(g.id);
+    showSuccess({ heading: 'Хүсэлт илгээгдлээ', wait: true, title: 'Удирдлагын зөвшөөрөл хүлээгдэж байна',
+      text: `${r.directorMasked} 72 цагийн дотор ДАН-аар зөвшөөрөхөд байгууллага баталгаажна. Танд мэдэгдэл ирнэ.`, cta: 'Ойлголоо', act: 'close' });
   },
+  'success-invite': () => { closeModal(); A.invite(); },
+  'success-domain': () => { closeModal(); S.tab = 'domains'; render(); openModal('domain-add'); },
   'sim-director': () => { const g = cur(); g.status = 'verified'; REGISTRY[g.reg].registered = true; REGISTRY[g.reg].domains = g.domains; g.requests = sampleRequests(); g.members.push(...sampleStaff()); render(); toast('Удирдлага зөвшөөрлөө. Байгууллага баталгаажлаа'); },
   'to-join': () => { D.joinMethod = 'email'; openModal('join'); },
   'back-reg': () => openModal('reg'),
@@ -629,32 +742,37 @@ const A = {
     const r = REGISTRY[D.reg], v = $('#email').value.trim().toLowerCase(), m = v.match(/^[^@\s]+@([^@\s]+\.[^@\s]+)$/), f = $('#emailField'), h = $('#emailHint');
     if (!m) { f.classList.add('invalid'); h.textContent = 'Зөв имэйл хаяг оруулна уу.'; return; }
     if (!r.domains.includes(m[1])) { f.classList.add('invalid'); h.innerHTML = 'Энэ имэйл байгууллагын домэйнд хамаарахгүй байна. <button class="linkbtn" data-act="join-method" data-m="request">Нэгдэх хүсэлт илгээх</button>'; return; }
-    D.email = v; D.code = newCode(); openModal('join-otp');
+    D.email = v; busy($('#next'), 'Илгээж байна', () => { D.code = newCode(); openModal('join-otp'); });
   },
-  'verify-join': () => {
-    if (!otpOk()) return;
+  'verify-join': () => verifyOtp(() => {
     const r = REGISTRY[D.reg];
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'verified', role: 'member',
       members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }, { ...meMember('member'), via: 'Та · Ажлын имэйлээр нэгдсэн' }] });
-    closeModal(); openGroup(g.id); toast('Та байгууллагын баталгаажсан гишүүн боллоо');
-  },
+    openGroup(g.id);
+    showSuccess({ heading: 'Амжилттай', title: 'Та баталгаажсан гишүүн боллоо', text: `${esc(r.name)} · Ажлын имэйлээр нэгдсэн`, cta: 'Группыг үзэх', act: 'close' });
+  }),
   'send-request': () => {
     const r = REGISTRY[D.reg]; D.note = $('#note').value.trim();
-    const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-join', role: 'member', members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }] });
-    closeModal(); openGroup(g.id); toast('Нэгдэх хүсэлт илгээгдлээ');
+    busy($('#next'), 'Илгээж байна', () => {
+      const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-join', role: 'member', members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }] });
+      openGroup(g.id);
+      showSuccess({ heading: 'Хүсэлт илгээгдлээ', wait: true, title: 'Админ зөвшөөрөхийг хүлээж байна', text: 'Зөвшөөрөхөд танд мэдэгдэл ирнэ. 14 хоногт шийдэгдээгүй хүсэлт хүчингүй болно.', cta: 'Ойлголоо', act: 'close' });
+    });
   },
   'sim-admin': () => { const g = cur(); g.status = 'verified'; g.members.push({ ...meMember('member'), via: 'Та · Нэгдэх хүсэлтээр' }); render(); toast('Админ зөвшөөрлөө. Та баталгаажсан гишүүн боллоо'); },
   'cancel-join': () => { S.groups = S.groups.filter(g => g.id !== S.groupId); S.page = 'groups'; render(); toast('Хүсэлтийг цуцаллаа'); },
   'open-group': el => openGroup(el.dataset.id),
   tab: el => { S.tab = el.dataset.tab; render(); },
-  decide: el => { const g = cur(), r = g.requests.find(x => x.id === +el.dataset.id); g.requests = g.requests.filter(x => x !== r);
-    if (el.dataset.ok === '1') g.members.push({ name: r.name, initials: r.initials, role: 'member', tone: r.tone, via: 'Нэгдэх хүсэлтээр' });
-    render(); toast(el.dataset.ok === '1' ? `${r.name} баталгаажсан гишүүн боллоо` : `${r.name}-ийн хүсэлтийг татгалзлаа`); },
+  decide: el => { const g = cur(), at = g.requests.findIndex(x => x.id === +el.dataset.id), r = g.requests[at]; g.requests.splice(at, 1);
+    if (el.dataset.ok === '1') { const m = { name: r.name, initials: r.initials, role: 'member', tone: r.tone, via: 'Нэгдэх хүсэлтээр' }; g.members.push(m);
+      render(); toast(`${r.name} баталгаажсан гишүүн боллоо`, () => { g.members = g.members.filter(x => x !== m); g.requests.splice(at, 0, r); render(); }); }
+    else { render(); toast(`${r.name}-ийн хүсэлтийг татгалзлаа`, () => { g.requests.splice(at, 0, r); render(); }); } },
   'approve-all': () => { const g = cur(), n = g.requests.length; g.requests.forEach(r => g.members.push({ name: r.name, initials: r.initials, role: 'member', tone: r.tone, via: 'Нэгдэх хүсэлтээр' })); g.requests = []; render(); toast(`${n} хүсэлтийг зөвшөөрлөө`); },
   invite: () => openModal('invite'),
-  'do-invite': () => { const v = $('#inv2').value.trim();
-    if (!validContact(v)) { $('#inv2Hint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу.'; $('#inv2Hint').style.color = 'var(--bad-ink)'; return; }
-    cur().members.push({ name: v, initials: '?', role: 'member', state: 'invited', tone: 'p0', via: 'Урилга илгээсэн' }); closeModal(); render(); toast('Урилга илгээлээ'); },
+  'do-invite': () => { const parts = $('#inv2').value.split(/[,;\n]+/).map(normContact).filter(Boolean);
+    if (!parts.length || !parts.every(validContact)) { $('#inv2Hint').textContent = '8 оронтой утасны дугаар эсвэл зөв имэйл оруулна уу. Олныг таслалаар тусгаарлана.'; $('#inv2Hint').style.color = 'var(--bad-ink)'; $('#inv2').focus(); return; }
+    busy($('#next'), 'Илгээж байна', () => { parts.forEach(v => cur().members.push({ name: v, initials: '?', role: 'member', state: 'invited', tone: 'p0', via: 'Урилга илгээсэн' }));
+      closeModal(); render(); toast(parts.length > 1 ? `${parts.length} урилга илгээлээ` : 'Урилга илгээлээ'); }, 350); },
   'add-domain': () => openModal('domain-add'),
   'domain-send': () => {
     const g = cur(), d = $('#domain').value.trim().toLowerCase().replace(/^@/, ''), f = $('#domainField'), h = $('#domainHint');
@@ -665,23 +783,38 @@ const A = {
     if (Object.values(REGISTRY).some(r => r.name !== g.name && (r.domains || []).includes(d))) return fail('Энэ домэйн өөр байгууллагад бүртгэлтэй байна.');
     const em = ($('#domainEmail').value.trim() || 'batbayar@' + d).toLowerCase();
     if (!em.endsWith('@' + d)) return fail('Имэйл тань энэ домэйнтэй байх ёстой.');
-    D.pendingDomain = d; D.email = em; D.code = newCode(); openModal('domain-otp');
+    D.pendingDomain = d; D.email = em; busy($('#next'), 'Илгээж байна', () => { D.code = newCode(); openModal('domain-otp'); });
   },
-  'domain-verify': () => { if (!otpOk()) return; cur().domains.push(D.pendingDomain); closeModal(); render(); toast('Домэйн идэвхжлээ'); },
-  'remove-domain': el => { const g = cur(); g.domains = g.domains.filter(d => d !== el.dataset.d); if (REGISTRY[g.reg]) REGISTRY[g.reg].domains = g.domains; render(); toast('Домэйн хасагдлаа. Өмнө нэгдсэн гишүүд үлдэнэ.'); },
-  'fill-code': () => { const boxes = [...modalRoot.querySelectorAll('.otp input')]; boxes.forEach((b, i) => b.value = D.code[i]); $('#next').disabled = false; $('#otpErr').hidden = true; $('#next').focus(); },
+  'domain-verify': () => verifyOtp(() => { cur().domains.push(D.pendingDomain); closeModal(); render(); toast(`@${D.pendingDomain} идэвхжлээ`); }),
+  'remove-domain': el => { const g = cur(), d = el.dataset.d, at = g.domains.indexOf(d); g.domains.splice(at, 1); if (REGISTRY[g.reg]) REGISTRY[g.reg].domains = g.domains; render();
+    toast(`@${d} хасагдлаа. Өмнө нэгдсэн гишүүд үлдэнэ.`, () => { g.domains.splice(at, 0, d); render(); }); },
+  'fill-code': () => { const boxes = [...modalRoot.querySelectorAll('.otp input')]; boxes.forEach((b, i) => b.value = D.code[i]); $('#otpErr').hidden = true; $('#next').disabled = false; $('#next').click(); },
   resend: () => { D.code = newCode(); openModal(D.modal); toast('Шинэ код илгээлээ'); },
   'accept-invite': el => { D = draft(); D.inviteId = el.dataset.id; openModal('invite-accept'); },
   agree: () => { $('#next').disabled = !$('#agree').checked; },
   'do-accept': () => { const v = S.invites.find(x => x.id === D.inviteId); S.invites = S.invites.filter(x => x !== v);
     const g = addGroup({ type: v.type, name: v.name, initials: v.initials, reg: '3301122', status: 'verified', role: 'member',
       members: [{ name: 'Оюун БААТАР', initials: 'ОБ', role: 'owner', tone: 'p3' }, { ...meMember('member'), via: 'Та · Админы урилгаар' }] });
-    closeModal(); openGroup(g.id); toast('Та баталгаажсан гишүүн боллоо'); },
-  'decline-invite': el => { S.invites = S.invites.filter(x => x.id !== el.dataset.id); render(); toast('Урилгаас татгалзлаа'); },
+    openGroup(g.id);
+    showSuccess({ heading: 'Амжилттай', title: 'Та баталгаажсан гишүүн боллоо', text: `${esc(v.name)} · Админы урилгаар нэгдсэн`, cta: 'Группыг үзэх', act: 'close' }); },
+  'decline-invite': el => { const at = S.invites.findIndex(x => x.id === el.dataset.id), v = S.invites[at]; S.invites.splice(at, 1); render();
+    toast('Урилгаас татгалзлаа', () => { S.invites.splice(at, 0, v); render(); }); },
 
   /* Member management (NAV-026, NAV-027) */
-  'm-cancel': el => { const g = cur(), m = g.members[+el.dataset.i];
-    confirmBox('Урилга цуцлах', `<b>${esc(m.name)}</b> руу илгээсэн урилгыг цуцлах уу?`, 'Цуцлах', true, () => { g.members.splice(+el.dataset.i, 1); render(); toast('Урилгыг цуцаллаа'); }); },
+  'm-menu': el => {
+    const g = cur(), i = +el.dataset.i, m = g.members[i]; closePop();
+    const items = m.state === 'invited' ? [['m-cancel', 'Урилга цуцлах', true]]
+      : [can(g, 'role', m) && ['m-role', 'Role солих', false], can(g, 'remove', m) && ['m-remove', 'Группээс хасах', true]].filter(Boolean);
+    const pop = document.createElement('div'); pop.className = 'pop'; pop.setAttribute('role', 'menu'); pop.dataset.for = i;
+    pop.innerHTML = items.map(([a, l, d]) => `<button role="menuitem" class="${d ? 'danger' : ''}" data-act="${a}" data-i="${i}">${l}</button>`).join('');
+    document.body.append(pop);
+    const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+    pop.style.top = (r.bottom + h + 8 > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+    pop.opener = el; el.setAttribute('aria-expanded', 'true'); pop.querySelector('button').focus({ preventScroll: true });
+  },
+  'm-cancel': el => { const g = cur(), at = +el.dataset.i, m = g.members[at]; g.members.splice(at, 1); render();
+    toast(`${m.name} руу илгээсэн урилгыг цуцаллаа`, () => { g.members.splice(at, 0, m); render(); }); },
   'm-remove': el => { const g = cur(), m = g.members[+el.dataset.i];
     const extra = m.kind === 'child' ? ' Хүүхэд «Миний хүүхэд»-д холбоотой хэвээр үлдэнэ.' : '';
     confirmBox('Гишүүн хасах', `<b>${esc(m.name)}</b>-г «${esc(g.name)}» группээс хасах уу? Түүний байршил хуваалцалт энэ группт шууд зогсоно.${extra}`, 'Хасах', true,
@@ -714,20 +847,48 @@ const mine = () => S.groups.find(g => g.type === 'org' && g.reg === D.reg);
 A['open-mine'] = () => { const g = mine(); closeModal(); openGroup(g.id); };
 
 document.addEventListener('click', e => {
+  const pop = $('.pop');
+  if (pop && !e.target.closest('.pop')) { pop.opener && pop.opener.setAttribute('aria-expanded', 'false'); pop.remove(); if (e.target.closest('[data-act="m-menu"]') === pop.opener) return; }
   if (e.target.matches('[data-scrim]')) return closeModal();
   const el = e.target.closest('[data-act]');
   if (!el) { if (e.target.closest('.menu a, .check a')) e.preventDefault(); return; }
   if (el.tagName === 'A') e.preventDefault();
   if (el.dataset.act === 'agree') return A.agree();
   e.stopPropagation();
+  if (el.closest('.pop')) { const o = $('.pop').opener; closePop(); if (o) { o.setAttribute('aria-expanded', 'false'); o.focus({ preventScroll: true }); } }
+  if (el.disabled) return;
   if (A[el.dataset.act]) A[el.dataset.act](el);
 });
 document.addEventListener('change', e => { if (e.target.matches('[data-child]')) { const id = e.target.dataset.child; D.children = e.target.checked ? [...D.children, id] : D.children.filter(x => x !== id); } });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && D.modal) closeModal();
-  if (e.key === 'Enter' && e.target.id === 'reg') { e.preventDefault(); A['check-reg'](); }
-  if (e.key === 'Enter' && e.target.id === 'inv') { e.preventDefault(); A['add-invitee'](); }
+/* Tesler: the system checks the register as soon as 7 digits are typed. */
+document.addEventListener('input', e => {
+  if (e.target.id !== 'reg') return;
+  const d = e.target.value.replace(/\D/g, '');
+  if (d.length === 7 && d !== D.autoReg) { D.autoReg = d; A['check-reg'](); }
 });
+document.addEventListener('keydown', e => {
+  const pop = $('.pop');
+  if (pop) {
+    const items = [...pop.querySelectorAll('button')], k = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); const o = pop.opener; closePop(); o && (o.setAttribute('aria-expanded', 'false'), o.focus()); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(k + 1) % items.length].focus(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(k - 1 + items.length) % items.length].focus(); return; }
+    if (e.key === 'Tab') closePop();
+  }
+  if (e.key === 'Escape' && D.modal) return closeModal();
+  if (e.key === 'Tab' && D.modal) {
+    const f = [...modalRoot.querySelectorAll('button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent !== null);
+    if (f.length) { const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); } }
+  }
+  if (e.key === 'Enter' && e.target.id === 'reg') { e.preventDefault(); A['check-reg'](); return; }
+  if (e.key === 'Enter' && e.target.id === 'inv') { e.preventDefault(); A['add-invitee'](); return; }
+  /* Jakob: Enter in a single-line field submits the dialog's primary action. */
+  if (e.key === 'Enter' && D.modal && e.target.matches('.modal input:not([type=checkbox]):not(.otp input)')) { const n = $('#next'); if (n && !n.disabled) { e.preventDefault(); n.click(); } }
+});
+window.addEventListener('resize', closePop);
+window.addEventListener('scroll', closePop, true);
 
 function render() {
   side.innerHTML = sidebar();
