@@ -316,7 +316,7 @@ const svg = (name, style = '') => I[name].replace('<svg', `<svg style="${style}"
 /* ---------- Sample DATA (not UI strings) ---------- */
 const ME = { name: 'Г.Батбаяр', short: 'ГБ' };
 const CHILDREN = [ { id: 'c1', name: 'Б.Тэмүүжин', sub: 'Эрэгтэй · 9 настай' }, { id: 'c2', name: 'Б.Номин', sub: 'Эмэгтэй · 6 настай' } ];
-/* Registry the backend would read through ДАН (legal entities) or WS100818_taxPayerInfo (sole proprietors). */
+/* Registry the backend would read from ХУР: legal-entity service (7-digit register) or WS100818_taxPayerInfo (sole proprietors, pin = own register). */
 const REGISTRY = {
   '5551234': { name: 'Монгол Тех ХХК', initials: 'МТ', director: 'me', directorMasked: 'Г*** Б***', registered: false },
   '6201258': { name: 'ICT Group ХХК', initials: 'IG', director: 'other', directorMasked: 'Д*** Э***', registered: false },
