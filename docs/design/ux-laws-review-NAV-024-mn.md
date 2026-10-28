@@ -62,3 +62,19 @@
 | 22 | **Fitts**, **Goal-gradient** | Газрын зураг ба жагсаалт салангид | Гишүүн дээр (жагсаалт эсвэл газрын зураг) дарахад тэр хүн рүү очиж «Зам» товчтой карт гарна; дээд талын chip-ээр групп солино; групп солиход бүгдийг багтаана |
 | 23 | Хүртээмж | — | Цэг бүр `button`, `aria-label`-тай (жишээ нь «Сараа ДОРЖ, 25 мин»); анивчилт `prefers-reduced-motion`-д унтарна |
 
+
+## 6. ICT Design System v1.0.0-тай тулгалт (2026-10-28)
+
+Эх сурвалж: Figma «ICT (Design System v1.0.0)» (`gw6NXD5xozooPLlJk3RoJH`): Colors хуудасны variables, Buttons, Modals («Stacked with team and link», desktop ба mobile). DS нь Untitled UI-д суурилсан.
+
+| Хэсэг | DS-ийн утга | Прототипт |
+|---|---|---|
+| Фонт | Inter Tight; Text sm 14/20, Text md 16/24, Text lg 18/28 | Бүх текст Inter Tight; мөр, тайлбар 14/20; input, товч 16/24; цонхны гарчиг 18/28 semibold |
+| Өнгө | Gray 25–950, Primary 600 `#034CDD` / 700 `#0345C9` / 50 `#F5F6FF` / 100 `#E6EDFC`, Success, Error, Warning шат | CSS token (`--gray-*`, `--primary-*`); төлөвийн тэмдэг ба тэмдэглэлд 50 дэвсгэр, 200 хүрээ, 700 текст |
+| Сүүдэр | Shadow xs, lg, xl | Товч, input: xs; газрын зургийн chip, toast: lg; цонх, газрын зургийн карт: xl |
+| Button | Primary (Primary 600), Secondary gray (цагаан, Gray 300 хүрээ), Secondary color (Primary 50 дэвсгэр), Tertiary; 44 px, 8 px radius | `.btn` 44 px, `.ghost` 36 px, `.ghost.brand` = Secondary color |
+| Input | 44 px, Gray 300 хүрээ, xs сүүдэр, focus: Primary 300 хүрээ ба 4 px Primary 100 цагираг | Бүх талбар, хайлт, холбоосын талбар |
+| Modal | 12 px radius, 24 px дотор зай, үйлдлийн дээр хуваагч шугам, тэнцүү өргөнтэй 2 товч; утсан дээр ирмэгээс 16 px зайтай хөвөгч карт, үндсэн товч дээр нь | Бүх цонх. Урилгын цонх DS-ийн «Stacked with team and link» загвар («Холбоосыг хуваалцах» шошготой талбар) |
+| Overlay | Gray 950, blur | `rgba(10,13,18,.6)` ба 8 px blur |
+
+**Брэнд өнгө:** iMap талд DS-ийн Primary (`#034CDD`). Hamuga ID талд одоогийн Hamuga ID бүтээгдэхүүний нил ягаан (`#5F00EB`) хэвээр, бусад нь (фонт, саарал, товч, цонх) DS-ээр. ID-г ч Primary руу шилжүүлэх эсэхийг PO шийднэ.

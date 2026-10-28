@@ -26,6 +26,8 @@
 -->
 <!-- iMap tiles (NAV-033): hamuga-imap-sdk on MapLibre. The API key is NOT in this file: it comes from imap-key.local.js
      (kept out of git), ?key=… or a key saved in this browser. Without a key the app side shows a drawn placeholder map. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/hamuga-imap-sdk@0.1.1/dist/hamuga-imap.min.css">
 <script src="https://unpkg.com/maplibre-gl@5.14.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/hamuga-imap-sdk@0.1.1/dist/iife.global.js"></script>
@@ -33,22 +35,29 @@
 <script src="imap-key.local.js"></script>
 <style>
   :root {
-    --page:#F4F5F4; --card:#FFFFFF; --text:#111827; --text-2:#6B7280; --text-3:#9CA3AF;
-    --line:#ECEDEE; --line-2:#E5E7EB; --hover:#F3F4F6; --active:#F1F2F3;
+    /* ICT Design System v1.0.0 (Figma «ICT (Design System v1.0.0)»): Gray, Success, Error, Warning, Primary scales */
+    --gray-25:#FDFDFD; --gray-50:#FAFAFA; --gray-100:#F5F5F5; --gray-200:#E9EAEB; --gray-300:#D5D7DA; --gray-400:#A4A7AE; --gray-500:#717680;
+    --gray-600:#535862; --gray-700:#414651; --gray-800:#252B37; --gray-900:#181D27; --gray-950:#0A0D12;
+    --primary-25:#FAFAFF; --primary-50:#F5F6FF; --primary-100:#E6EDFC; --primary-200:#B1C8F4; --primary-300:#8BADEF; --primary-600:#034CDD; --primary-700:#0345C9;
+    --shadow-xs:0 1px 2px rgba(16,24,40,.05);
+    --shadow-lg:0 12px 16px -4px rgba(16,24,40,.08),0 4px 6px -2px rgba(16,24,40,.03);
+    --shadow-xl:0 20px 24px -4px rgba(16,24,40,.08),0 8px 8px -4px rgba(16,24,40,.03);
+    --page:#F4F5F4; --card:#FFFFFF; --text:var(--gray-900); --text-2:var(--gray-600); --text-3:var(--gray-500);
+    --line:var(--gray-200); --line-2:var(--gray-300); --hover:var(--gray-50); --active:var(--gray-100);
     --brand:#5F00EB; --brand-hover:#5200CC; --brand-soft:#EFE7FE; --brand-ink:#3B0A91;
-    --ok:#22C55E; --ok-soft:#DCFCE7; --ok-ink:#166534;
-    --bad:#EF4444; --bad-soft:#FEE2E2; --bad-ink:#991B1B;
-    --wait:#F59E0B; --wait-soft:#FEF3C7; --wait-ink:#92400E;
-    --info:#2563EB; --info-soft:#DBEAFE; --info-ink:#1E40AF;
-    --warn-bg:#FFF7ED; --warn-ink:#C2410C;
-    --shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
-    --modal-shadow:0 20px 40px rgba(16,24,40,.18);
+    --ok:#12B76A; --ok-soft:#ECFDF3; --ok-line:#A6F4C5; --ok-ink:#027A48;
+    --bad:#F04438; --bad-soft:#FEF3F2; --bad-line:#FECDCA; --bad-ink:#B42318;
+    --wait:#F79009; --wait-soft:#FFFAEB; --wait-line:#FEDF89; --wait-ink:#B54708;
+    --info:#034CDD; --info-soft:#F5F6FF; --info-line:#B1C8F4; --info-ink:#0345C9;
+    --warn-bg:#FFFAEB; --warn-ink:#B54708;
+    --shadow:var(--shadow-xs);
+    --modal-shadow:var(--shadow-xl);
     color-scheme: light;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; }
-  body { background: var(--page); color: var(--text); font: 14px/1.5 Inter, "Segoe UI", Roboto, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { background: var(--page); color: var(--text); font: 14px/20px "Inter Tight", Inter, "Segoe UI", Roboto, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
   button, input { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   svg { flex: none; }
@@ -295,7 +304,7 @@
   .logo .app { background: #0F766E; }
 
   /* iMap (map app): icon rail + list panel + full-height map, iMap colours */
-  body.imap { --brand:#1E88E5; --brand-hover:#1976D2; --brand-soft:#E3F0FC; --brand-ink:#0D47A1; --im-green:#22B14C; background: #fff; }
+  body.imap { --brand:var(--primary-600); --brand-hover:var(--primary-700); --brand-soft:var(--primary-50); --brand-ink:var(--primary-700); --im-green:#22B14C; background: #fff; }
   body.imap .topbar { display: none; }
   .layout.app { max-width: none; padding: 0; gap: 0; grid-template-columns: 62px 352px minmax(0, 1fr); height: calc(100vh - var(--pb, 48px)); align-items: stretch; }
   .layout.app .sidebar { display: none; }
@@ -392,6 +401,67 @@
     .rail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; flex-direction: row; padding: 0 0 env(safe-area-inset-bottom); border-right: 0; border-top: 1px solid var(--line); }
     .rail .brandmark { display: none; }
     .rail a { flex: 1; padding: 8px 2px; min-height: 56px; justify-content: center; }
+  }
+
+  /* ---------- ICT Design System v1.0.0 components (Untitled UI based): Button, Input, Badge, Modal, Tabs ---------- */
+  .btn { height: auto; min-height: 44px; padding: 10px 18px; border-radius: 8px; font-size: 16px; line-height: 24px; font-weight: 600; box-shadow: var(--shadow-xs); }
+  .btn.outline { border-color: var(--gray-300); color: var(--gray-700); }
+  .btn.outline:hover { background: var(--gray-50); color: var(--gray-800); }
+  .btn.primary:disabled { background: var(--gray-100); color: var(--gray-400); border-color: var(--gray-200); box-shadow: none; }
+  .btn:focus-visible, .ghost:focus-visible { outline: none; box-shadow: var(--shadow-xs), 0 0 0 4px var(--primary-100); }
+  .ghost { height: 36px; padding: 0 14px; border-radius: 8px; border-color: var(--gray-300); color: var(--gray-700); font-size: 14px; font-weight: 600; box-shadow: var(--shadow-xs); }
+  .ghost:hover { background: var(--gray-50); }
+  .ghost.brand { background: var(--brand-soft); border-color: transparent; color: var(--brand-ink); box-shadow: none; }
+  .ghost.brand:hover { background: var(--primary-100); }
+  body:not(.imap) .ghost.brand:hover { background: #E4D7FD; }
+  .ghost.danger { color: var(--bad-ink); border-color: var(--bad-line); }
+  .ghost.danger:hover { background: var(--bad-soft); }
+  .field label, .field .lbl { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--gray-700); }
+  .field input, .search { height: 44px; border: 1px solid var(--gray-300); border-radius: 8px; box-shadow: var(--shadow-xs); font-size: 16px; color: var(--gray-900); }
+  .field input::placeholder, .search input::placeholder { color: var(--gray-500); }
+  .field input:focus, .search:focus-within { outline: none; border-color: var(--primary-300); box-shadow: var(--shadow-xs), 0 0 0 4px var(--primary-100); }
+  .field.invalid input { border-color: #FDA29B; } .field.invalid input:focus { box-shadow: var(--shadow-xs), 0 0 0 4px var(--bad-soft); }
+  .field .hint { font-size: 14px; line-height: 20px; color: var(--gray-600); }
+  .pill { font-size: 12px; line-height: 18px; font-weight: 500; padding: 1px 8px; border: 1px solid var(--gray-200); background: var(--gray-50); color: var(--gray-700); }
+  .pill.ok { border-color: var(--ok-line); } .pill.wait { border-color: var(--wait-line); } .pill.info { border-color: var(--info-line); }
+  .pill.brand { border-color: transparent; } .pill.grey { background: var(--gray-50); color: var(--gray-700); border-color: var(--gray-200); }
+  .list, .empty, .sharecard { border-radius: 12px; }
+  .list { box-shadow: var(--shadow-xs); border: 1px solid var(--gray-200); }
+  .row .name { font-size: 14px; line-height: 20px; color: var(--gray-900); } .row .sub { font-size: 14px; line-height: 20px; color: var(--gray-600); }
+  .section-head h2 { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--gray-900); } .section-head p { font-size: 14px; line-height: 20px; color: var(--gray-600); }
+  .note { border-radius: 12px; font-size: 14px; line-height: 20px; border: 1px solid transparent; }
+  .note.info { border-color: var(--info-line); } .note.ok { border-color: var(--ok-line); } .note.bad { border-color: var(--bad-line); } .note.warn { border-color: var(--wait-line); }
+  .note.grey { background: var(--gray-50); border-color: var(--gray-200); color: var(--gray-700); }
+  .tabs { border-bottom-color: var(--gray-200); } .tabs button { font-size: 14px; color: var(--gray-500); } .tabs button[aria-selected="true"] { color: var(--brand-ink); }
+  /* Modal: 12px radius, 24px padding, divider above full-width actions, gray-950 overlay with blur */
+  .scrim { background: rgba(10,13,18,.6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .modal { border-radius: 12px; box-shadow: var(--shadow-xl); max-width: 400px; }
+  .modal-h { padding: 24px 24px 0; border-bottom: 0; align-items: flex-start; }
+  .modal-h h3 { font-size: 18px; line-height: 28px; font-weight: 600; color: var(--gray-900); }
+  .x svg { fill: var(--gray-400); }
+  .stepper { padding: 16px 24px 0; }
+  .modal-b { padding: 16px 24px 24px; gap: 16px; }
+  .modal-b .muted { font-size: 14px; line-height: 20px; color: var(--gray-600); }
+  .modal-f { padding: 24px; border-top: 1px solid var(--gray-200); gap: 12px; }
+  .modal-f .btn.outline, .modal-f .btn.primary { flex: 1 1 0; }
+  .linkbox { border: 1px solid var(--gray-300); border-radius: 8px; box-shadow: var(--shadow-xs); height: 44px; padding: 0 4px 0 14px; font-size: 16px; color: var(--gray-900); }
+  .linkbox code { font-family: inherit; }
+  .opt, .type { border-color: var(--gray-200); border-radius: 12px; }
+  .opt[aria-checked="true"], .type[aria-checked="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; background: var(--brand-soft); }
+  .toast { background: var(--gray-900); border-radius: 12px; box-shadow: var(--shadow-lg); font-size: 14px; }
+  .chip.pick { border-color: var(--gray-300); color: var(--gray-700); font-weight: 500; font-size: 14px; }
+  .mapchips button { font-size: 14px; font-weight: 600; color: var(--gray-700); box-shadow: var(--shadow-lg); }
+  .mapchips button[aria-pressed="true"] { color: #fff; }
+  .mapcard { border-radius: 12px; box-shadow: var(--shadow-xl); }
+  .panel-head { background: var(--gray-50); border-bottom-color: var(--gray-200); }
+  .panel-head h1 { font-size: 18px; line-height: 28px; font-weight: 600; color: var(--gray-900); } .panel-head p { font-size: 14px; line-height: 20px; color: var(--gray-600); }
+  @media (max-width: 600px) {
+    /* DS mobile modal: floating card 16px from the edges, actions stacked with the primary on top */
+    .scrim { place-items: end stretch; padding: 16px; }
+    .modal { border-radius: 12px; max-height: calc(100vh - 32px); }
+    .modal-f { position: static; flex-direction: column-reverse; padding: 16px; padding-bottom: 16px; }
+    .modal-f .btn.outline, .modal-f .btn.primary { flex: none; width: 100%; }
+    .modal-h, .modal-b { padding-left: 16px; padding-right: 16px; }
   }
 </style>
 </head>
@@ -759,8 +829,8 @@ const M = {
     return modal(D.justCreated ? `«${esc(g.name)}» үүслээ` : 'Гишүүн нэмэх', `
       ${D.justCreated ? `<p class="muted" style="color:var(--text)">Одоо найзуудаа нэмнэ үү. Холбоос эсвэл QR-ээр нэгдсэн хүн шууд гишүүн болно.</p>` : ''}
       <div class="qrwrap"><div id="qr" role="img" aria-label="Группт нэгдэх QR код"></div><div class="qrcap">Найз тань утасны камераар уншуулна</div></div>
-      <div class="linkbox"><code>${url}</code><button class="ghost" data-act="copy-link">Хуулах</button></div>
-      <div class="sub" style="font-size:12px;color:var(--text-2)">Холбоос 7 хоног хүчинтэй. Нэгдсэн хүний байршил анхдагчаар хуваалцагдахгүй. <button class="linkbtn" data-act="renew-link">Холбоос шинэчлэх</button></div>
+      <div class="field"><span class="lbl">Холбоосыг хуваалцах</span><div class="linkbox"><code>${url}</code><button class="ghost" data-act="copy-link">Хуулах</button></div></div>
+      <div class="sub" style="font-size:14px;line-height:20px;color:var(--text-2)">Холбоос 7 хоног хүчинтэй. Нэгдсэн хүний байршил анхдагчаар хуваалцагдахгүй. <button class="linkbtn" data-act="renew-link">Холбоос шинэчлэх</button></div>
       <details class="more"><summary>Утас эсвэл имэйлээр урих</summary>
         <div class="field" style="margin-top:10px"><div class="inline"><input id="inv2" aria-label="Утас эсвэл имэйл" placeholder="99112233 эсвэл нэр@mail.mn, олныг таслалаар" autocomplete="off"><button class="btn outline" data-act="do-invite-contact" style="flex:none">Илгээх</button></div>
         <div class="hint" id="inv2Hint">Hamuga ID-гүй хүнд бүртгүүлэх холбоос очно.</div></div></details>
