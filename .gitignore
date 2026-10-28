@@ -1,0 +1,2 @@
+# Local-only secrets (Hamuga iMap client key for the prototype)
+*.local.js
