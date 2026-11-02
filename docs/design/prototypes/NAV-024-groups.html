@@ -463,6 +463,28 @@
     .modal-f .btn.outline, .modal-f .btn.primary { flex: none; width: 100%; }
     .modal-h, .modal-b { padding-left: 16px; padding-right: 16px; }
   }
+  /* 2026-11-02: row chevron, divider, progress track, duration chips */
+  .row .go { display: grid; place-items: center; width: 24px; flex: none; }
+  .row .go svg { width: 18px !important; height: 18px !important; fill: var(--gray-400) !important; }
+  .row.click:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--gray-500); font-size: 13px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--gray-200); }
+  .track { list-style: none; margin: 0; padding: 16px; display: flex; flex-direction: column; gap: 0; }
+  .track li { display: flex; gap: 12px; position: relative; padding-bottom: 16px; }
+  .track li:last-child { padding-bottom: 0; }
+  .track li:not(:last-child)::before { content: ""; position: absolute; left: 11px; top: 26px; bottom: 2px; width: 2px; background: var(--gray-200); }
+  .track li.done:not(:last-child)::before { background: var(--brand); }
+  .track i { width: 24px; height: 24px; border-radius: 50%; flex: none; display: grid; place-items: center; border: 2px solid var(--gray-300); background: #fff; }
+  .track li.done i { background: var(--brand); border-color: var(--brand); }
+  .track li.done i svg { width: 14px; height: 14px; fill: #fff; }
+  .track li.on i { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+  .track li.on i::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+  .track b { display: block; font-size: 14px; line-height: 20px; color: var(--gray-900); font-weight: 600; }
+  .track span { display: block; font-size: 13px; line-height: 18px; color: var(--gray-600); }
+  .track li:not(.done):not(.on) b { color: var(--gray-500); }
+  .chipbtn { border: 1px solid var(--gray-300); background: #fff; border-radius: 999px; padding: 8px 14px; min-height: 36px; font: inherit; font-size: 14px; font-weight: 600; color: var(--gray-700); cursor: pointer; }
+  .chipbtn[aria-checked="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
+  .chipbtn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -565,7 +587,7 @@ const S = {
 try { const q = new URLSearchParams(location.search).get('sys') || location.hash.slice(1); if (q === 'app') S.sys = 'app'; } catch (e) { /* preview without a URL */ }
 const sysGroups = () => S.groups.filter(g => SYS_TYPES[S.sys].includes(g.type));
 const sysInvites = () => S.invites.filter(v => SYS_TYPES[S.sys].includes(v.type));
-const draft = () => ({ step: 'type', type: null, name: '', dur: '1h', link: null, q: '', children: CHILDREN.map(c => c.id), invitees: [], reg: '', found: null, joinMethod: 'email', email: '', note: '', code: '', otpFor: null });
+const draft = () => ({ step: 'type', type: null, name: '', dur: '1h', pick: [], link: null, q: '', children: CHILDREN.map(c => c.id), invitees: [], reg: '', found: null, joinMethod: 'email', email: '', note: '', code: '', otpFor: null });
 let D = draft();
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -647,12 +669,13 @@ function invitesSection() {
 }
 function groupRows(list) {
   return `<div class="list">${list.map(g => {
-    const share = S.sys === 'app' ? (g.share ? (g.hidden ? ' · <b>Нуусан</b>' : ` · <b style="color:var(--ok-ink)">Хуваалцаж байна</b>`) : '') : '';
-    return `<div class="row click" data-act="open-group" data-id="${g.id}">
+    const live = g.members.filter(m => !m.me && m.loc).length;
+    const share = S.sys === 'app' ? (g.share ? (g.hidden ? ' · <b>Та нуусан</b>' : ` · <b style="color:var(--ok-ink)">Та хуваалцаж байна</b>`) : live ? ` · ${live} хүн харагдаж байна` : '') : '';
+    return `<div class="row click" role="button" tabindex="0" data-act="open-group" data-id="${g.id}" aria-label="${esc(g.name)}: нээх">
         ${typeAva(g.type, g.initials, g.type === 'org' ? (g.status === 'verified' ? 'ok' : 'wait') : (g.share && !g.hidden ? 'ok' : null))}
-        <div class="body"><div class="name">${esc(g.name)}${g.type === 'family' ? `<span class="pill grey">${TYPES[g.type].label}</span>` : ''}${S.sys === 'app' && g.type === 'family' ? '<span class="pill brand">Hamuga ID</span>' : ''}${statusPill(g)}${g.role !== 'member' && g.requests.length ? `<span class="count soft">${g.requests.length} хүсэлт</span>` : ''}</div>
+        <div class="body"><div class="name">${esc(g.name)}${S.sys === 'app' && g.type === 'family' ? '<span class="pill brand">Гэр бүл · Hamuga ID</span>' : ''}${statusPill(g)}${g.role !== 'member' && g.requests.length ? `<span class="count soft">${g.requests.length} хүсэлт</span>` : ''}</div>
         <div class="sub"><span class="stack-s" aria-hidden="true">${g.members.slice(0, 3).map(m => `<span class="ava ${m.tone || 'p0'}">${esc(m.initials)}</span>`).join('')}</span>${g.members.length} гишүүн · ${roleLabel(g.role)}${share}</div></div>
-        <div class="acts keep"><button class="ghost" data-act="open-group" data-id="${g.id}" aria-label="${esc(g.name)}: дэлгэрэнгүй">Нээх ${svg('arrow')}</button></div></div>`; }).join('')}</div>`;
+        <span class="go" aria-hidden="true">${I.chev}</span></div>`; }).join('')}</div>`;
 }
 /* Hamuga ID home: «Миний байгууллага» (NAV-024). */
 function orgsPage() {
@@ -664,8 +687,7 @@ function orgsPage() {
         <h3>Байгууллага алга</h3><p>Байгууллагаа регистр эсвэл ТТД-ээр бүртгэх, эсвэл бүртгэлтэй байгууллагад нэгдэнэ үү.</p>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn outline" data-act="find-org">${I.search}Байгууллагад нэгдэх</button><button class="btn primary" data-act="create">${I.plus}Байгууллага бүртгэх</button></div></div>`;
   return `${mode}${invitesSection()}<section>${head('Миний байгууллага', 'Таны бүртгэсэн болон гишүүн байгаа байгууллагууд',
-      list.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-act="find-org">${I.search}Нэгдэх</button><button class="ghost brand" data-act="create">${I.plus}Байгууллага бүртгэх</button></div>` : '')}${body}</section>
-    <div class="note warn">${I.warn}<div>Байгууллага бүртгэхийн тулд таны бүртгэл ДАН баталгаажуулалт хийгдсэн буюу Түвшин 2 байх шаардлагатай.</div></div>`;
+      list.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-act="find-org">${I.search}Нэгдэх</button><button class="ghost brand" data-act="create">${I.plus}Байгууллага бүртгэх</button></div>` : '')}${body}</section>`;
 }
 /* Map app home: «Группууд» (NAV-033). */
 const sharing = () => sysGroups().filter(g => g.share && !g.hidden);
@@ -673,8 +695,8 @@ function appHome() {
   const list = sysGroups(), on = sharing();
   const card = `<div class="sharecard"><div class="ava ${on.length ? 't-friend' : ''}" style="${on.length ? '' : 'background:#F3F4F6;color:#6B7280'}">${svg('globe')}</div>
       <div class="body"><div class="name">Миний байршил${on.length ? `<span class="pill ok">${on.length} группт хуваалцаж байна</span>` : '<span class="pill grey">Хуваалцаагүй</span>'}</div>
-      <div class="sub">${on.length ? on.map(g => `${esc(g.name)}: ${durLabel(g.share)}`).join(' · ') : 'Анхдагчаар унтраалттай. Группээ нээгээд хугацаатайгаар асаана.'}</div></div>
-      ${on.length ? '<div class="acts"><button class="ghost danger" data-act="stop-all">Бүгдийг зогсоох</button></div>' : ''}</div>`;
+      <div class="sub">${on.length ? on.map(g => `${esc(g.name)}: ${durLabel(g.share)}`).join(' · ') : 'Анхдагчаар унтраалттай. Хэнтэй, хэр удаан хуваалцахаа сонгоно.'}</div></div>
+      <div class="acts">${list.length ? `<button class="ghost ${on.length ? '' : 'primary'}" data-act="share-pick">${on.length ? 'Өөрчлөх' : svg('globe', 'fill:#fff') + 'Хуваалцах'}</button>` : ''}${on.length ? '<button class="ghost danger" data-act="stop-all">Бүгдийг зогсоох</button>' : ''}</div></div>`;
   const body = list.length ? groupRows(list)
     : `<div class="empty"><div class="stack">${typeAva('family')}<div class="ava mid t-friend">${svg('friend', 'width:22px;height:22px')}</div>${typeAva('other')}</div>
         <h3>Групп алга</h3><p>Найзууд, багтайгаа групп үүсгэж байршлаа хуваалцана уу. Гэр бүл тань Hamuga ID-аас автоматаар орж ирнэ.</p>
@@ -721,7 +743,7 @@ function locText(m, g) {
 }
 function memberRow(m, i, g) {
   const dot = m.state === 'invited' ? 'wait' : 'ok';
-  const pill = m.state === 'invited' ? '<span class="pill wait">Урилга хүлээгдэж буй</span>' : m.kind === 'child' ? '<span class="pill brand">Хүүхдийн горим</span>' : '';
+  const pill = m.state === 'invited' ? '<span class="pill wait">Урилга хүлээгдэж буй</span>' : m.kind === 'child' ? (S.sys === 'app' ? '<span class="pill brand">Хүүхдийн горим</span>' : '<span class="pill grey">0–16 нас · ДАН</span>') : '';
   const hasActs = !m.me && (m.state === 'invited' ? can(g, 'remove', m) : can(g, 'role', m) || can(g, 'remove', m));
   const acts = hasActs ? `<button class="ghost kebab" data-act="m-menu" data-i="${i}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(m.name)}: үйлдлүүд">⋯</button>` : '';
   return `<div class="row"><div class="ava ${m.tone || 'p0'}">${esc(m.initials)}<span class="dot ${dot}"></span></div>
@@ -749,14 +771,20 @@ function groupPage() {
     : g.type === 'family' ? `<button class="crumb" data-act="go-family">${I.back}Гэр бүл</button>` : `<button class="crumb" data-act="go-groups">${I.back}Миний байгууллага</button>`;
   const top = `<div class="list"><div class="row">${typeAva(g.type, g.initials, g.type === 'org' ? (g.status === 'verified' ? 'ok' : 'wait') : 'ok')}
     <div class="body"><div class="name">${esc(g.name)}${g.type === 'family' ? `<span class="pill grey">${TYPES[g.type].label}</span>` : ''}${statusPill(g)}</div>
-    <div class="sub">${g.reg ? 'Регистр ' + g.reg.replace(/^(\d{2})\d+(\d{2})$/, '$1•••$2') + ' · ' : ''}Таны role: ${roleLabel(g.role)}</div></div></div></div>`;
+    <div class="sub">${g.reg ? 'Регистр ' + g.reg.replace(/^(\d{2})\d+(\d{2})$/, '$1•••$2') + ' · ' : ''}${g.status === 'pending-director' ? 'Таны role-ийг удирдлага олгоно' : 'Таны role: ' + roleLabel(g.role)}</div></div></div></div>`;
   let pend = '';
-  if (g.status === 'pending-director') pend = `<div class="note info">${I.info}<div style="flex:1">Гүйцэтгэх удирдлага <b>${g.directorMasked}</b> руу зөвшөөрлийн хүсэлт илгээсэн. 72 цагийн дотор ДАН-аар зөвшөөрөхөд байгууллага баталгаажна.
-      <div style="margin-top:8px"><button class="ghost" data-act="sim-director">Туршилт: удирдлага зөвшөөрсөн гэж үзэх</button></div></div></div>`;
+  if (g.status === 'pending-director') pend = `<section>${head('Баталгаажуулалтын явц', '')}<div class="list"><ol class="track">
+      <li class="done"><i>${I.check}</i><div><b>Хүсэлт илгээсэн</b><span>Өнөөдөр · push, SMS, имэйлээр</span></div></li>
+      <li class="on"><i></i><div><b>Удирдлага ${g.directorMasked} ДАН-аар зөвшөөрөх</b><span>72 цагаас 71 цаг үлдсэн · таны role-ийг (Эзэмшигч эсвэл Админ) сонгоно</span></div></li>
+      <li><i></i><div><b>Баталгаажсан байгууллага</b><span>Ажилтнуудаа урих, домэйн нэмэх нээгдэнэ</span></div></li></ol>
+      <div class="row"><div class="body sub">Удирдлагад хүсэлт очоогүй бол 24 цагийн дараа дахин илгээнэ.</div>
+      <div class="acts keep"><button class="ghost" disabled title="24 цагийн дараа">Дахин илгээх</button><button class="ghost danger" data-act="cancel-join">Цуцлах</button></div></div></div>
+      <div style="margin-top:8px"><button class="ghost" data-act="sim-director">Туршилт: удирдлага зөвшөөрсөн гэж үзэх</button></div></section>`;
   if (g.status === 'pending-join') pend = `<div class="note info">${I.info}<div style="flex:1">Нэгдэх хүсэлт илгээгдсэн. Админ зөвшөөрөхөд та баталгаажсан гишүүн болно. 14 хоногт шийдэгдээгүй бол хүчингүй болно.
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" data-act="sim-admin">Туршилт: админ зөвшөөрсөн гэж үзэх</button><button class="ghost danger" data-act="cancel-join">Хүсэлт цуцлах</button></div></div></div>`;
   const canManage = g.role === 'owner' || g.role === 'admin';
-  const inviteBtn = can(g, 'invite') ? `<button class="ghost brand" data-act="invite">${I.plus}${S.sys === 'app' ? 'Гишүүн нэмэх' : 'Гишүүн урих'}</button>` : '';
+  const inviteBtn = (g.type === 'family' && S.sys === 'id' && can(g, 'invite') ? `<button class="ghost" data-act="add-child">${svg('child')}Хүүхэд нэмэх</button>` : '')
+    + (can(g, 'invite') ? `<button class="ghost brand" data-act="invite">${I.plus}${S.sys === 'app' ? 'Гишүүн нэмэх' : 'Гишүүн урих'}</button>` : '');
   const isOrgAdmin = g.type === 'org' && g.status === 'verified' && canManage;
   const tabs = isOrgAdmin ? `<div class="tabs" role="tablist">
       <button role="tab" data-act="tab" data-tab="members" aria-selected="${S.tab === 'members'}">Гишүүд</button>
@@ -764,7 +792,7 @@ function groupPage() {
       <button role="tab" data-act="tab" data-tab="domains" aria-selected="${S.tab === 'domains'}">Ажлын имэйлийн домэйн</button></div>` : '';
   const tab = isOrgAdmin ? S.tab : 'members';
   let body = '';
-  if (tab === 'members') body = head('Гишүүд', g.type === 'family' ? 'Хүүхдүүд «Миний хүүхэд»-ээс ДАН-аар холбогдсон тул урилгагүйгээр нэмэгдсэн.' : 'Группын гишүүд ба тэдний role', inviteBtn)
+  if (tab === 'members') body = head('Гишүүд', g.type === 'family' ? 'Хүүхдүүд «Миний хүүхэд»-ээс ДАН-аар холбогдсон тул урилгагүйгээр нэмэгдсэн.' : 'Группын гишүүд ба тэдний role', inviteBtn ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${inviteBtn}</div>` : '')
       + `<div class="list">${g.members.map((m, i) => memberRow(m, i, g)).join('')}</div>`;
   if (tab === 'requests') body = head('Нэгдэх хүсэлтүүд', 'Ажлын имэйлээр нэгдсэн хүмүүс энд орохгүй: тэд автоматаар баталгаажна.',
       g.requests.length ? `<button class="ghost primary" data-act="approve-all">${svg('check', 'fill:#fff')}Бүгдийг зөвшөөрөх</button>` : '')
@@ -781,15 +809,13 @@ function groupPage() {
       <div class="note grey" style="margin-top:12px">${I.info}<div>gmail.com, yahoo.com зэрэг нийтийн имэйлийн домэйныг нэмэх боломжгүй. Нэг домэйн зөвхөн нэг байгууллагад холбогдоно.</div></div>`;
   if (g.type === 'family' && S.sys === 'id') pend = `<div class="note grey">${I.info}<div style="flex:1">Байршил хуваалцах нь iMap-ын «Групп» цэсэнд байна. Энд зөвхөн гишүүдийг удирдана.
       <div style="margin-top:8px"><button class="ghost" data-act="sys" data-to="app" data-group="${g.id}">iMap-д нээх ${svg('arrow')}</button></div></div></div>`;
-  if (g.type === 'family' && S.sys === 'app') pend = `<div class="note grey">${I.info}<div style="flex:1">Гэр бүлийн гишүүдийг Hamuga ID-д удирдана. iMap гишүүдийн жагсаалтыг ID-аас уншина.
-      <div style="margin-top:8px"><button class="ghost" data-act="sys" data-to="id" data-group="${g.id}">Hamuga ID-д удирдах ${svg('arrow')}</button></div></div></div>`;
+  if (g.type === 'family' && S.sys === 'app') pend = `<div class="note grey">${I.info}<div style="flex:1">Гишүүдийг Hamuga ID-д удирдана. <button class="linkbtn" data-act="sys" data-to="id" data-group="${g.id}">Hamuga ID-д удирдах</button></div></div>`;
   const settings = tab === 'members' && !(S.sys === 'app' && idOwned(g)) ? settingsSection(g) : '';
-  return `<div>${back}</div><section>${top}</section>${S.sys === 'app' ? shareSection(g) : ''}${pend}<section>${tabs}${body}</section>${settings}`;
+  if (S.sys === 'app') return `<div>${back}</div><section>${top}</section>${shareSection(g)}<section>${body}</section>${childNote(g)}${pend}${settings}`;
+  return `<div>${back}</div><section>${top}</section>${pend}<section>${tabs}${body}</section>${settings}`;
 }
 /* NAV-033 B–C: off by default, always time-limited, can be hidden per group; one-time link for people outside the group. */
 function shareSection(g) {
-  const kids = g.members.filter(m => m.kind === 'child');
-  const child = kids.length ? `<div class="note info">${I.info}<div>Хүүхдийн горим: ${kids.map(k => esc(k.name)).join(', ')}-ийн байршил танд үргэлж харагдана. Хүүхэд үүнийг унтрааж чадахгүй. 18 нас хүрэхэд Hamuga ID-ийн мэдэгдлээр автоматаар унтарна.</div></div>` : '';
   const state = !g.share ? { pill: '<span class="pill grey">Хуваалцаагүй</span>', sub: 'Энэ группийн гишүүд таны байршлыг харахгүй.',
       acts: `<button class="ghost primary" data-act="share">${svg('globe', 'fill:#fff')}Байршил хуваалцах</button>` }
     : g.hidden ? { pill: '<span class="pill wait">Түр нуусан</span>', sub: 'Энэ группээс нуусан. Бусад группт хуваалцсаар байна.',
@@ -797,7 +823,12 @@ function shareSection(g) {
     : { pill: `<span class="pill ok">Хуваалцаж байна · ${durLabel(g.share)}</span>`, sub: g.share === 'on' ? 'Зогсоох хүртэл. 7 хоног тутамд танд сануулна.' : 'Хугацаа дуусахад автоматаар зогсоно.',
       acts: '<button class="ghost" data-act="share-hide">Энэ группээс нуух</button><button class="ghost danger" data-act="share-stop">Зогсоох</button>' };
   return `<section><div class="sharecard"><div class="body"><div class="name">Миний байршил энэ группт ${state.pill}</div><div class="sub">${state.sub}</div></div>
-    <div class="acts">${state.acts}<button class="ghost" data-act="share-link">${I.link}Байршлын холбоос</button></div></div></section>${child}`;
+    <div class="acts">${state.acts}<button class="ghost" data-act="share-link">${I.link}Байршлын холбоос</button></div></div></section>`;
+}
+/* NAV-034: children's mode, said once and short, below the people it concerns. */
+function childNote(g) {
+  const kids = g.members.filter(m => m.kind === 'child');
+  return kids.length ? `<div class="note info">${I.info}<div>Хүүхдийн горим: ${kids.map(k => esc(k.name)).join(', ')} байршлаа нууж чадахгүй. 18 нас хүрэхэд автоматаар унтарна.</div></div>` : '';
 }
 
 /* ---------- Modals ---------- */
@@ -871,8 +902,8 @@ const M = {
     else if (f && mine()) res = `<div class="note info">${I.info}<div>Та «${esc(mine().name)}» байгууллагад аль хэдийн байна.</div></div>`;
     else if (f) {
       const r = REGISTRY[D.reg];
-      res = `<div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}</div><div class="sub">${r.kind === 'tin' ? `Татварын ерөнхий газрын мэдээлэл · ТТД ${D.reg}` : 'Улсын бүртгэлийн мэдээлэл'}</div></div></div></div>
-        <p class="lead" style="margin:0">Энэ байгууллага мөн үү?</p>` +
+      res = `<p class="lead" style="margin:0">Энэ байгууллага мөн үү?</p>
+        <div class="list flat"><div class="row"><div class="ava sq t-org">${r.initials}</div><div class="body"><div class="name">${r.name}</div><div class="sub">${r.kind === 'tin' ? `Татварын ерөнхий газар (ХУР) · ТТД ${D.reg}` : `Хуулийн этгээдийн бүртгэл (ХУР) · Регистр ${D.reg}`}</div></div></div></div>` +
         (r.registered ? `<div class="note warn">${I.warn}<div>Энэ байгууллага Hamuga ID-д аль хэдийн бүртгэгдсэн байна. Та байгууллагад нь нэгдэж болно.</div></div>`
         : r.kind === 'tin' ? `<div class="note ok">${I.verified}<div>Энэ ТТД таны регистр дээр бүртгэлтэй тул шууд баталгаажна.</div></div>`
         : r.director === 'me' ? `<div class="note ok">${I.verified}<div>Та энэ байгууллагын гүйцэтгэх удирдлага тул байгууллага шууд баталгаажна.</div></div>`
@@ -880,20 +911,21 @@ const M = {
     }
     const r = f === 'ok' ? REGISTRY[D.reg] : null;
     /* NAV-029 AC 14: one-tap choices from WS100818_taxPayerInfo (pin = own register), shown until a result is on screen. */
-    const tins = r ? '' : `<div><div class="subhead">Эсвэл таны нэр дээрх татвар төлөгчөөс сонгоно уу</div>
+    const tins = r ? '' : `<div><div class="subhead">Таны нэр дээрх татвар төлөгч</div>
       <div style="display:flex;flex-direction:column;gap:8px">${MY_TINS.map(t => { const x = REGISTRY[t]; return `<button class="opt tin" data-act="pick-tin" data-v="${t}">
         <div class="ava sq t-org">${x.initials}</div><div style="flex:1"><div class="t">${esc(x.name)}${x.registered ? '<span class="pill grey">Бүртгэгдсэн</span>' : ''}</div><div class="d">ТТД ${t} · Хувиараа бизнес эрхлэгч</div></div>${I.chev}</button>`; }).join('')}</div>
-      <div class="hint" style="margin-top:6px">Татварын ерөнхий газрын мэдээллээс таны регистрээр олсон.</div></div>`;
+      <div class="hint" style="margin-top:6px">Татварын ерөнхий газрын мэдээллээс таны регистрээр олсон. Нэгийг сонгоход шууд баталгаажна.</div></div>
+      <div class="or"><span>эсвэл</span></div>`;
     const next = !r ? footer('close', 'Шалгах', 'check-reg', false, 'Болих') :
       mine() ? footer('close', 'Байгууллагыг нээх', 'open-mine', false, 'Болих') :
       r.registered ? footer('close', 'Нэгдэх', 'to-join', false, 'Болих') :
-      r.director === 'me' ? footer('close', 'Бүртгэх', 'register-me', false, 'Болих') : footer('close', 'Удирдлагаас зөвшөөрөл хүсэх', 'register-ask', false, 'Болих');
-    return modal('Байгууллага бүртгэх', `
-      <div class="field" id="regField"><label for="reg">Регистр эсвэл ТТД</label>
-        <div class="inline"><input id="reg" inputmode="numeric" maxlength="20" autocomplete="off" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234"><button class="btn outline" data-act="check-reg" style="flex:none">Шалгах</button></div>
-        <div class="hint">Хуулийн этгээдийн 7 оронтой регистрийг бичмэгц автоматаар шална. ТТД бичсэн бол «Шалгах»-ыг дарна.</div>
+      r.director === 'me' ? footer('close', 'Бүртгэх', 'register-me', false, 'Болих') : footer('close', 'Зөвшөөрөл хүсэх', 'register-ask', false, 'Болих');
+    return modal('Байгууллага бүртгэх', `${tins}
+      <div class="field" id="regField"><label for="reg">${r ? 'Регистр эсвэл ТТД' : 'Хуулийн этгээдийн регистр эсвэл ТТД'}</label>
+        <input id="reg" inputmode="numeric" maxlength="20" autocomplete="off" value="${esc(D.reg)}" placeholder="Жишээ нь: 5551234">
+        <div class="hint">7 оронтой регистрийг бичмэгц автоматаар шалгана. ТТД бол «Шалгах»-ыг дарна.</div>
         <div class="testhint">Туршилт: <code data-act="try-reg" data-v="5551234">5551234</code> та удирдлага · <code data-act="try-reg" data-v="6201258">6201258</code> өөр удирдлага · <code data-act="try-reg" data-v="2034567">2034567</code> аль хэдийн бүртгэлтэй · <code data-act="try-reg" data-v="99999999999">99999999999</code> өөр хүний ТТД</div></div>
-      ${tins}${res}`, next, [0, STEPS.org]);
+      ${res}`, next, [0, STEPS.org]);
   },
 
   join: () => {
@@ -989,6 +1021,24 @@ const M = {
       ${orgs.length ? '' : `<div class="note grey">${I.info}<div>Баталгаажсан байгууллага алга. Байгууллагаа бүртгэсний дараа энд гарна.</div></div>`}`,
       `<button class="btn outline" data-act="close">Хаах</button>`);
   },
+
+  /* NAV-033 B: share from the home card — choose groups and a duration in one dialog. */
+  'share-pick': () => { const list = sysGroups();
+    return modal('Байршил хуваалцах', `<div class="field"><span class="lbl">Хэнтэй</span><div class="list flat">${list.map(g => `<label class="checkrow"><input type="checkbox" data-pick="${g.id}" ${D.pick.includes(g.id) ? 'checked' : ''}>
+        ${typeAva(g.type, g.initials)}<div style="flex:1"><div style="font-weight:600;font-size:14px">${esc(g.name)}</div><div class="sub" style="font-size:13px;color:var(--text-2)">${g.members.length} гишүүн${g.share ? ' · одоо ' + durLabel(g.share) : ''}</div></div></label>`).join('')}</div></div>
+      <div class="field"><span class="lbl">Хэр удаан</span><div class="chips" role="radiogroup" aria-label="Хугацаа">${DURATIONS.map(([k, l]) =>
+        `<button class="chipbtn" role="radio" data-act="dur-pick" data-k="${k}" aria-checked="${D.dur === k}">${l}</button>`).join('')}</div>
+        <div class="hint">${D.dur === 'on' ? '7 хоног тутамд «Та одоо ч хуваалцаж байна» гэж сануулна.' : 'Хугацаа дуусахад автоматаар зогсоно.'} Байршлын түүх хадгалагдахгүй.</div></div>`,
+      footer('close', 'Хуваалцаж эхлэх', 'share-many', !D.pick.length, 'Болих')); },
+
+  /* NAV-024 B: children come only from «Миний хүүхэд» (linked through ДАН); no invitation. */
+  'add-child': () => { const g = cur(), inG = g.members.filter(m => m.kind === 'child').map(m => m.name), rest = CHILDREN.filter(c => !inG.includes(c.name));
+    return modal('Хүүхэд нэмэх', `<p class="muted">«Миний хүүхэд»-д ДАН-аар холбогдсон хүүхдүүд урилгагүйгээр нэмэгдэнэ.</p>
+      <div class="list flat">${CHILDREN.map(c => `<div class="checkrow"><div class="ava p2" style="width:32px;height:32px;font-size:12px">${c.name.split('.')[1][0]}</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:14px">${c.name}</div><div class="sub" style="font-size:13px;color:var(--text-2)">${c.sub}</div></div>
+        ${inG.includes(c.name) ? '<span class="pill ok">Нэмэгдсэн</span>' : `<button class="ghost brand" data-act="add-child-do" data-id="${c.id}">Нэмэх</button>`}</div>`).join('')}</div>
+      ${rest.length ? '' : `<div class="note grey">${I.info}<div>Бүх хүүхэд тань энэ группт байна. Шинэ хүүхдээ эхлээд «Миний хүүхэд»-д бүртгэнэ (0–16 нас: эцэг/эх 10 минутад зөвшөөрнө).</div></div>`}`,
+      `<button class="btn outline" data-act="close">Хаах</button><button class="btn primary" id="next" data-act="to-kids">Хүүхэд бүртгэх</button>`); },
 
   /* NAV-033 B: always time-limited; «until I stop» reminds every 7 days. */
   share: () => modal('Байршил хуваалцах', `<p class="muted">«${esc(cur().name)}» группийн гишүүд таны байршлыг газрын зураг дээр харна.</p>
@@ -1121,6 +1171,17 @@ const A = {
   'stop-all': () => { const on = sharing().map(g => [g, g.share]); on.forEach(([g]) => g.share = null); render();
     toast(`${on.length} группт хуваалцахыг зогсоолоо`, () => { on.forEach(([g, v]) => g.share = v); render(); }); },
   'share-link': () => { D.link = null; D.dur = '1h'; openModal('share-link'); },
+  'share-pick': () => { const on = sysGroups().filter(g => g.share); /* Privacy by default: preselect only what is already shared, else the family; never every group. */
+    D.pick = on.length ? on.map(g => g.id) : sysGroups().filter(g => g.type === 'family').map(g => g.id); D.dur = (on[0] && on[0].share) || '1h'; openModal('share-pick'); },
+  'dur-pick': el => { D.pick = [...modalRoot.querySelectorAll('[data-pick]:checked')].map(x => x.dataset.pick); D.dur = el.dataset.k; openModal('share-pick'); },
+  'share-many': () => { const ids = [...modalRoot.querySelectorAll('[data-pick]:checked')].map(x => x.dataset.pick), was = S.groups.map(g => [g, g.share, g.hidden]);
+    S.groups.forEach(g => { if (SYS_TYPES[S.sys].includes(g.type)) { g.share = ids.includes(g.id) ? D.dur : null; if (g.share) g.hidden = false; } });
+    closeModal(); render(); toast(ids.length ? `${ids.length} группт байршлаа хуваалцаж байна · ${durLabel(D.dur)}` : 'Хуваалцахыг зогсоолоо', () => { was.forEach(([g, s, h]) => { g.share = s; g.hidden = h; }); render(); }); },
+  'add-child': () => openModal('add-child'),
+  'add-child-do': el => { const c = CHILDREN.find(x => x.id === el.dataset.id), g = cur(), i = g.members.filter(m => m.kind === 'child').length;
+    g.members.push({ name: c.name, initials: c.name.split('.')[1][0], role: 'member', kind: 'child', tone: i ? 'p3' : 'p2', place: c.place, battery: c.battery, loc: { x: c.x, y: c.y } });
+    openModal('add-child'); render(); toast(`${c.name} нэмэгдлээ`); },
+  'to-kids': () => { closeModal(); toast('«Миний хүүхэд» нь Hamuga ID-ийн одоогийн цэс. Прототипт ороогүй.'); },
   'dur-link': el => { D.dur = el.dataset.k; openModal('share-link'); },
   'make-link': () => busy($('#next'), 'Үүсгэж байна', () => { D.link = 'https://hamuga.mn/l/' + Math.random().toString(36).slice(2, 8); openModal('share-link'); }, 350),
   'copy-link': el => { try { navigator.clipboard && navigator.clipboard.writeText(el.previousElementSibling.textContent); } catch (e) { /* no clipboard in preview */ } toast('Холбоосыг хууллаа'); },
@@ -1171,7 +1232,7 @@ const A = {
     const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-director', directorMasked: r.directorMasked, role: 'owner', members: [meMember('owner')] });
     openGroup(g.id);
     showSuccess({ heading: 'Хүсэлт илгээгдлээ', wait: true, title: 'Удирдлагын зөвшөөрөл хүлээгдэж байна',
-      text: `${r.directorMasked} 72 цагийн дотор ДАН-аар зөвшөөрөхөд байгууллага баталгаажна. Танд мэдэгдэл ирнэ.`, cta: 'Ойлголоо', act: 'close' });
+      text: `${r.directorMasked} 72 цагийн дотор ДАН-аар зөвшөөрөхөд байгууллага баталгаажна. Танд мэдэгдэл ирнэ.`, cta: 'Явцыг харах', act: 'close' });
   },
   'success-invite': () => { closeModal(); A.invite(); },
   'success-share': () => { closeModal(); A.share(); },
@@ -1199,7 +1260,7 @@ const A = {
     busy($('#next'), 'Илгээж байна', () => {
       const g = addGroup({ type: 'org', name: r.name, initials: r.initials, reg: D.reg, status: 'pending-join', role: 'member', members: [{ name: 'Цэрэн НАРАН', initials: 'ЦН', role: 'owner', tone: 'p1' }] });
       openGroup(g.id);
-      showSuccess({ heading: 'Хүсэлт илгээгдлээ', wait: true, title: 'Админ зөвшөөрөхийг хүлээж байна', text: 'Зөвшөөрөхөд танд мэдэгдэл ирнэ. 14 хоногт шийдэгдээгүй хүсэлт хүчингүй болно.', cta: 'Ойлголоо', act: 'close' });
+      showSuccess({ heading: 'Хүсэлт илгээгдлээ', wait: true, title: 'Админ зөвшөөрөхийг хүлээж байна', text: 'Зөвшөөрөхөд танд мэдэгдэл ирнэ. 14 хоногт шийдэгдээгүй хүсэлт хүчингүй болно.', cta: 'Явцыг харах', act: 'close' });
     });
   },
   'sim-admin': () => { const g = cur(); g.status = 'verified'; g.members.push({ ...meMember('member'), via: 'Та · Нэгдэх хүсэлтээр' }); render(); toast('Админ зөвшөөрлөө. Та баталгаажсан гишүүн боллоо'); },
@@ -1308,7 +1369,8 @@ document.addEventListener('click', e => {
   if (el.disabled) return;
   if (A[el.dataset.act]) A[el.dataset.act](el);
 });
-document.addEventListener('change', e => { if (e.target.matches('[data-child]')) { const id = e.target.dataset.child; D.children = e.target.checked ? [...D.children, id] : D.children.filter(x => x !== id); } });
+document.addEventListener('change', e => { if (e.target.matches('[data-pick]')) { const n = $('#next'); if (n) n.disabled = !modalRoot.querySelector('[data-pick]:checked'); return; }
+  if (e.target.matches('[data-child]')) { const id = e.target.dataset.child; D.children = e.target.checked ? [...D.children, id] : D.children.filter(x => x !== id); } });
 /* Tesler: the system checks the register as soon as 7 digits are typed. */
 document.addEventListener('input', e => {
   if (e.target.id === 'findq') { D.q = e.target.value; const t = document.createElement('div'); t.innerHTML = M['find-org'](); $('#findres').replaceWith(t.querySelector('#findres')); return; }
